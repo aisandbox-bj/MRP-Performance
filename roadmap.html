@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · Roadmap · v0.1.0-dev
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     Same deck grammar as the Calibre Suite roadmap (slides · contents ·
+     drag-reorderable pending tiles). Tile order is a per-viewer convenience
+     kept in this browser only (localStorage, this app's own key).
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Roadmap</title>
+<style>
+  :root {
+    --bg-deep: #0a0e1a; --bg-panel: #131826; --bg-card: #1a2236; --bg-card2: #232d44;
+    --cal: #12A7B0; --cal-dim: #6fd3da; --cal-soft: rgba(18,167,176,0.12);
+    --green: #4caf50; --gold: #ffd54f; --orange: #ff9800; --red: #ef5350; --blue: #64b5f6;
+    --text-pri: #e8f0fe; --text-sec: #b8c5d8; --text-dim: #6a7892; --text-faint: #485870;
+    --border: rgba(18,167,176,0.25); --border-soft: rgba(255,255,255,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100vh; overflow: hidden; background: var(--bg-deep); color: var(--text-pri); font-family: 'Segoe UI', system-ui, sans-serif; }
+  .deck { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+  .nav-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: var(--bg-panel); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px; flex-wrap: wrap; }
+  .nav-title { font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cal); }
+  .nav-title a { color: var(--text-dim); text-decoration: none; margin-left: 14px; font-weight: 500; letter-spacing: 1px; }
+  .nav-title a:hover { color: var(--cal); }
+  .nav-controls { display: flex; align-items: center; gap: 14px; }
+  .nav-counter { font-size: 12px; color: var(--text-sec); font-family: monospace; }
+  .nav-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-pri); padding: 6px 14px; font-size: 12px; cursor: pointer; border-radius: 4px; }
+  .nav-btn:hover { background: var(--cal-soft); border-color: var(--cal); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .slide-area { flex: 1; overflow-y: auto; padding: 32px 48px 48px; }
+  @media (max-width: 700px){ .slide-area { padding: 20px 16px 40px; } }
+  .slide { display: none; max-width: 1000px; margin: 0 auto; animation: fadeIn 0.18s ease-out; }
+  .slide.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .slide h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; line-height: 1.25; }
+  .slide h2 { font-size: 20px; color: var(--cal); margin: 26px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .slide p { color: var(--text-sec); margin-bottom: 12px; line-height: 1.65; }
+  .slide ul { margin: 0 0 14px 22px; color: var(--text-sec); }
+  .slide li { margin-bottom: 6px; line-height: 1.6; }
+  .slide strong { color: var(--text-pri); }
+  .slide code { font-family: Consolas, monospace; background: var(--bg-card2); padding: 1px 6px; border-radius: 3px; font-size: 12px; color: var(--blue); }
+  .eyebrow { font-size: 10px; color: var(--text-dim); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 8px; }
+  .badge { display: inline-block; font-size: 10px; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-left: 10px; vertical-align: middle; }
+  .badge.shipped { background: rgba(76,175,80,0.15); color: var(--green); border: 1px solid rgba(76,175,80,0.3); }
+  .badge.next { background: rgba(255,213,79,0.18); color: var(--gold); border: 1px solid rgba(255,213,79,0.4); }
+  .badge.pending { background: rgba(100,181,246,0.15); color: var(--blue); border: 1px solid rgba(100,181,246,0.3); }
+  .badge.blocked { background: rgba(255,152,0,0.15); color: var(--orange); border: 1px solid rgba(255,152,0,0.4); }
+  .badge.future { background: rgba(106,127,160,0.15); color: var(--text-dim); border: 1px solid var(--text-dim); }
+  .card { background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+  .card.bar-g { border-left: 4px solid var(--green); } .card.bar-b { border-left: 4px solid var(--blue); } .card.bar-y { border-left: 4px solid var(--gold); }
+  .card.bar-r { border-left: 4px solid var(--red); background: rgba(239,83,80,0.05); } .card.bar-o { border-left: 4px solid var(--orange); }
+  .card-label { font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+  .card-content { font-size: 13.5px; color: var(--text-pri); line-height: 1.55; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+  @media (max-width: 800px){ .three-col { grid-template-columns: 1fr; } }
+  .cover { text-align: center; padding-top: 5vh; }
+  .cover h1 { font-size: 44px; } .cover h1 span { color: var(--cal); }
+  .cover .sub { font-size: 18px; color: var(--text-sec); margin-bottom: 26px; }
+  .cover .tagline { font-size: 14px; color: var(--cal-dim); font-style: italic; letter-spacing: 1px; margin-bottom: 26px; }
+  .cover .stats { display: flex; gap: 16px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+  .cover .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 22px; min-width: 120px; }
+  .cover .stat-val { font-size: 30px; font-weight: 700; color: var(--cal); display: block; margin-bottom: 4px; }
+  .cover .stat-lbl { font-size: 10px; color: var(--text-dim); letter-spacing: 1.2px; text-transform: uppercase; }
+  .kbd-hint { font-size: 10px; color: var(--text-faint); margin-top: 26px; }
+  .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin: 14px 0 22px; }
+  .shipped-tile { background: var(--bg-card); border: 1px solid var(--border-soft); border-left: 4px solid var(--green); border-radius: 8px; padding: 12px 16px; }
+  .shipped-tile .v { font-size: 11px; color: var(--cal-dim); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; font-family: monospace; }
+  .shipped-tile .t { font-size: 13px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+  .shipped-tile .d { font-size: 11.5px; color: var(--text-sec); line-height: 1.45; }
+  .pending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin: 18px 0; }
+  .pending-tile { position: relative; background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 8px; padding: 14px 18px; cursor: grab; user-select: none; }
+  .pending-tile[data-status="next"] { border-left: 4px solid var(--gold); } .pending-tile[data-status="pending"] { border-left: 4px solid var(--blue); }
+  .pending-tile[data-status="blocked"] { border-left: 4px solid var(--orange); } .pending-tile[data-status="future"] { border-left: 4px solid var(--text-dim); }
+  .pending-tile.dragging { opacity: 0.4; } .pending-tile.drag-over { border: 1px dashed var(--cal); background: var(--cal-soft); }
+  .pt-rank { position: absolute; top: 10px; left: 10px; background: var(--bg-card2); color: var(--cal-dim); font-family: monospace; font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+  .pt-handle { position: absolute; top: 10px; right: 12px; color: var(--text-faint); }
+  .pt-version { font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 4px 30px; font-family: monospace; }
+  .pt-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; line-height: 1.3; }
+  .pt-desc { font-size: 11.5px; color: var(--text-sec); line-height: 1.5; }
+  .reset-link { font-size: 11px; color: var(--text-dim); cursor: pointer; text-decoration: underline; background: none; border: none; }
+  .toc-overlay { display: none; position: fixed; inset: 0; background: rgba(10,14,26,0.97); z-index: 100; padding: 50px 60px; overflow-y: auto; }
+  .toc-overlay.open { display: block; }
+  .toc-list { list-style: none; padding: 0; margin: 20px 0 0; }
+  .toc-list li { padding: 9px 14px; cursor: pointer; border-radius: 6px; display: flex; gap: 14px; }
+  .toc-list li:hover { background: var(--cal-soft); }
+  .toc-num { font-family: monospace; color: var(--text-dim); font-size: 11px; min-width: 30px; }
+  .toc-close { position: absolute; top: 18px; right: 24px; }
+  table.dc { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0 16px; }
+  table.dc th { text-align: left; color: var(--text-dim); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  table.dc td { padding: 6px 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-sec); vertical-align: top; }
+  table.dc td:first-child { color: var(--text-pri); white-space: nowrap; }
+  @media print { html, body { height: auto; overflow: visible; } .nav-bar { display: none; } .slide { display: block !important; page-break-after: always; } }
+</style>
+</head>
+<body>
+<div class="deck">
+  <div class="nav-bar">
+    <div class="nav-title">MRP Performance — Roadmap <a href="index.html">← App</a><a href="record-of-change.html">Record of change</a></div>
+    <div class="nav-controls">
+      <button class="nav-btn" id="tocBtn">☰ Contents</button>
+      <span class="nav-counter" id="counter">1 / 1</span>
+      <button class="nav-btn" id="prevBtn" aria-label="Previous slide">←</button>
+      <button class="nav-btn" id="nextBtn" aria-label="Next slide">→</button>
+    </div>
+  </div>
+
+  <div class="slide-area" id="slideArea">
+
+    <div class="slide active cover" data-title="Cover">
+      <div class="eyebrow">Calibre suite · new tool · started 2026-09-25</div>
+      <h1>Calibre <span>MRP Performance</span></h1>
+      <div class="sub">Supply-chain performance across every material — not one part at a time</div>
+      <div class="tagline">What you cannot measure, you cannot manage.</div>
+      <p style="max-width:640px;margin:0 auto 12px;font-size:14px;">A separate app from Calibre Tune and Trace (its own repo, its own browser storage). It borrows Tune's intake and engine modules as tracked copies, so the numbers tie, and never writes to Tune.</p>
+      <div class="stats">
+        <div class="stat"><span class="stat-val">7</span><span class="stat-lbl">Shipped in v0.1</span></div>
+        <div class="stat"><span class="stat-val" id="nPending">—</span><span class="stat-lbl">Queued</span></div>
+        <div class="stat"><span class="stat-val">1</span><span class="stat-lbl">Blocked on a decision</span></div>
+      </div>
+      <div class="kbd-hint">← → arrow keys · ☰ Contents to jump · Esc to close</div>
+    </div>
+
+    <div class="slide" data-title="How this works">
+      <div class="eyebrow">Working rule — same as the suite</div>
+      <h1>How we use this deck</h1>
+      <div class="three-col">
+        <div class="card bar-g"><div class="card-label">Step 1 — Build</div><div class="card-content">Pre-edit snapshot, edit, browser verification, Record of Change entry, rollback refs cut, push.</div></div>
+        <div class="card bar-b"><div class="card-label">Step 2 — Test</div><div class="card-content">Operator runs it on real extracts, off-repo.</div></div>
+        <div class="card bar-y"><div class="card-label">Step 3 — Confirm</div><div class="card-content">"Works" or "broken — here's what". Only then the next chunk.</div></div>
+      </div>
+      <h2>Status badges</h2>
+      <ul style="list-style:none;margin-left:0;">
+        <li><span class="badge shipped" style="margin-left:0">Shipped</span> built, browser-verified, pushed — pending operator validation until confirmed.</li>
+        <li><span class="badge next" style="margin-left:0">Next</span> the chunk we're about to do.</li>
+        <li><span class="badge pending" style="margin-left:0">Pending</span> ready when the operator says go.</li>
+        <li><span class="badge blocked" style="margin-left:0">Blocked</span> needs a decision or data first.</li>
+        <li><span class="badge future" style="margin-left:0">Future</span> later, no schedule.</li>
+      </ul>
+      <h2>Prime directive — never hide issues</h2>
+      <div class="card bar-r"><div class="card-content">Impossible values (negative rebuilt stock, dates out of sequence, POs received without a PR) are listed and drill-able — never smoothed out of a chart. Distributions, not averages: still-open items are shown as lower bounds, both tails reachable.</div></div>
+      <h2>Rollback rule</h2>
+      <p>Before every push: a <code>backup/pre-&lt;chunk&gt;</code> branch and <code>checkpoint/pre-&lt;chunk&gt;</code> tag at the current <code>origin/main</code>, plus a local <code>_rollback/&lt;CHUNK&gt;-pre/</code> snapshot. Steps are in the Record of Change.</p>
+    </div>
+
+    <div class="slide" data-title="What's shipped — v0.1.0-dev">
+      <div class="eyebrow">v0.1.0-dev · 2026-09-25 · browser-verified · pending operator validation</div>
+      <h1>What's shipped <span class="badge shipped">v0.1.0-dev</span></h1>
+      <div class="tile-grid">
+        <div class="shipped-tile"><div class="v">PERF-INT</div><div class="t">Intake — supply-chain performance run</div><div class="d">Tune's intake, adapted: MB51 + Inventory Master + PR History required; the files decide the scope; PR-History DQ checks (need-by %, PO→receipt join); Delivery Date (yyyymmdd) now read; Tune downloads load too.</div></div>
+        <div class="shipped-tile"><div class="v">PERF-ENGINE</div><div class="t">Population engine</div><div class="d">Every PR line followed PR → release → PO → 3PL → site → first use with signed durations; daily stock rebuilt for every material. Ties exactly to Trace's chains and Tune's back-calc (built-in parity check).</div></div>
+        <div class="shipped-tile"><div class="v">PERF-TRIGGER</div><div class="t">Trigger health &amp; MRP response</div><div class="d">Each time stock crosses Min / SS: was anything on order, how long to a PR, a PO and recovery; days exposed with nothing on order; trigger debt vs MRP cadence; quiet stretches.</div></div>
+        <div class="shipped-tile"><div class="v">PERF-LEGS</div><div class="t">Process legs as distributions</div><div class="d">Approval, buyer, PR → PO, supplier (manufacturer), 3PL, end to end, against plan — histograms with still-open items, out-of-sequence bin, per-month boxes with % closed, breakdowns, drill to both tails.</div></div>
+        <div class="shipped-tile"><div class="v">PERF-STOCK</div><div class="t">Order sizing &amp; over / under</div><div class="d">V1 order-to-Max ratio at every PR, stock after receipt vs Max, reorder frequency vs plan, receipts vs trigger line, $ over Max, shelf time, stockouts in flight vs nothing on order.</div></div>
+        <div class="shipped-tile"><div class="v">PERF-SEG</div><div class="t">Material segments</div><div class="d">Drop-in tiles: quartiles (with cut points), top / bottom %, ranges, value picks with include / exclude, text, PR trigger, plus a time window. Every view follows.</div></div>
+        <div class="shipped-tile"><div class="v">PERF-OPS</div><div class="t">Change management</div><div class="d">Own repo + storage namespace, provenance manifest for borrowed files, Record of Change with rollback, genesis + pre-push checkpoints.</div></div>
+      </div>
+    </div>
+
+    <div class="slide" data-title="What's next">
+      <div class="eyebrow">Queue · drag tiles to reorder (saved in this browser only)</div>
+      <h1>What's next</h1>
+      <div class="pending-grid" id="pendingGrid"></div>
+      <button class="reset-link" id="resetOrder">Reset to default order</button>
+      <script type="application/json" id="pendingData">[
+        {"id":"VALIDATE","status":"next","version":"Operator · v0.1.0-dev","title":"Operator validation on real extracts","desc":"Run a real 150–500k-line MB51 + PR History + Inventory Master through Intake → Workbench. Report timings, anything that looks wrong, and which views earn their place."},
+        {"id":"107","status":"blocked","version":"Decision · data semantics","title":"Confirm what MB51 107 means at this site","desc":"Built on 107 = arrived at the 3PL (operator 2026-09-25 + Trace spec). Tune's stock-rebuild notes record 107 = shipped from 3PL toward site (2026-05-16). If the latter, the 3PL leg is transit only and 3PL dwell sits inside the supplier leg."},
+        {"id":"SEG-SAVE","status":"pending","version":"v0.2 · segments","title":"Save, name and compare segments","desc":"Keep named segments (e.g. 'Top-quartile V1', 'High-value > $10k') and show two segments side by side as small multiples."},
+        {"id":"TRACK","status":"pending","version":"v0.2 · tracking","title":"Scorecard snapshots and KPI tracking","desc":"Save each run's per-leg distributions (and your KPI targets) to a file; compare runs to see whether each leg is improving or drifting."},
+        {"id":"ROOT","status":"pending","version":"v0.3 · root cause","title":"Stockout root-cause attribution","desc":"For every stockout, name the leg that broke: no trigger, late trigger, slow approval, slow buyer, supplier late, 3PL slow, or Min too low for the lead time."},
+        {"id":"PD-DEMAND","status":"pending","version":"v0.3 · PD","title":"PD demand-driven response","desc":"PD without safety stock is triggered by reservations, which MB51 doesn't carry. Add IW39 / reservation data to measure 'job waited for the part' and PR response to demand."},
+        {"id":"SPLIT","status":"pending","version":"v0.2 · supplier","title":"Split deliveries and quantity fill","desc":"Count 107 / 109 lines per PO and compare received qty with the PR qty, per manufacturer."},
+        {"id":"LAG","status":"pending","version":"v0.2 · data discipline","title":"Posting lag / back-dating","desc":"Entry Date vs Posting Date is now captured from MB51 — show how late receipts and issues are keyed."},
+        {"id":"STO","status":"future","version":"v0.3 · cover","title":"Stock-transfer in-transit as cover","desc":"Count 641 → 101 stock-transfer quantities in transit as cover in trigger health."},
+        {"id":"WORKER","status":"future","version":"Performance","title":"Background build for very large files","desc":"Move the engine into a Web Worker if real 500k-line builds make the page stall (the 450k-row synthetic test built in ~1.8 s)."},
+        {"id":"REPORT","status":"future","version":"Reporting module","title":"Reporting module (PDF / Excel scorecard)","desc":"Operator decision 2026-09-25: workbench first, reporting later."},
+        {"id":"VENDOR","status":"future","version":"Next phase, if ever","title":"Real vendor + PO data","desc":"Replace manufacturer-as-vendor with the MB51 Vendor column or a PO extract (PO qty, price, confirmed date) for on-time-in-full."},
+        {"id":"MINMAX-HIST","status":"future","version":"Data","title":"Historical Min / Max","desc":"Material-master change documents would let order-to-Max and trigger lines use the values in force at the time, not today's."},
+        {"id":"PAGES","status":"blocked","version":"Operator decision","title":"Publish on GitHub Pages","desc":"Enables live testing like Tune. A repository setting — waiting for the operator's OK."}
+      ]</script>
+    </div>
+
+    <div class="slide" data-title="Decisions & open questions">
+      <div class="eyebrow">Locked 2026-09-25 unless noted</div>
+      <h1>Decisions &amp; open questions</h1>
+      <div class="card bar-g"><div class="card-label">Separate app</div><div class="card-content">Own repo (<code>aisandbox-bj/MRP-Performance</code>), own storage namespace (<code>mrpPerf</code>). Tune and Trace are not touched. Tune's shared modules are copied with a provenance manifest (source commit + SHA-256) so drift shows.</div></div>
+      <div class="card bar-g"><div class="card-label">Same intake</div><div class="card-content">Tune's intake module, adapted. The input files decide the scope. V1 and PD both assessed. MB51 expected at 150k–500k lines.</div></div>
+      <div class="card bar-g"><div class="card-label">Cohort anchoring</div><div class="card-content">Each leg anchored on its own start: PR→PO by PR-created month · supplier by PO month · 3PL by month goods reached the 3PL. Months are provisional until 90% have closed; open items count as lower bounds.</div></div>
+      <div class="card bar-g"><div class="card-label">Trigger health</div><div class="card-content">Below the trigger line with NO open PO and NOTHING at the 3PL. A PR alone is not cover. Stock is rebuilt daily from MB51 — no daily snapshots needed.</div></div>
+      <div class="card bar-g"><div class="card-label">Vendor, PO data, reporting</div><div class="card-content">Manufacturer stands in for vendor for now. No PO details (next phase, if ever). Workbench first; reporting module later. KPI targets entered once the baseline is seen.</div></div>
+      <div class="card bar-o"><div class="card-label">Open — 107 semantics</div><div class="card-content">See the blocked tile on "What's next".</div></div>
+      <div class="card bar-o"><div class="card-label">Found while building — PD without safety stock</div><div class="card-content">Zero stock isn't a trigger for PD without SS (MRP acts on reservations). Those stockouts are counted but kept out of trigger-response and trigger-debt, and named on the view.</div></div>
+    </div>
+
+    <div class="slide" data-title="Data contract">
+      <div class="eyebrow">What the app reads</div>
+      <h1>Data contract</h1>
+      <table class="dc">
+        <tr><th>File</th><th>Columns the performance views use</th><th>Used for</th></tr>
+        <tr><td>MB51</td><td>Posting Date · Material · Movement Type · Quantity · Purchase order · (Amt.in Loc.Cur. · Entry Date · Storage Location)</td><td>Stock rebuild · 107 arrival at 3PL · 109 site receipt · 261 first use · consumption</td></tr>
+        <tr><td>PR History</td><td>Purchase Requisition · Item · Material · Requisition date · Release Date · Purchase order · Purchase Order Date · Changed On · Deletion Indicator · Processing status · Creation indicator · Quantity requested · Purchasing Group · <b>Delivery Date</b></td><td>Chains · cancellations / churn · MRP vs manual · need-by (plan)</td></tr>
+        <tr><td>Inventory Master</td><td>Material · Unrestricted · MRP Type · Reorder Point · Maximum Stock Level · Safety Stock · Mfg Name · Moving price · Material Group · Purchasing Group · (extract date)</td><td>Stock anchor · trigger line · Max · manufacturer · unit cost · segments</td></tr>
+      </table>
+      <p>Same canonical JSON as Calibre Tune (<code>SCHEMA_VERSION 1.0.0</code>). New fields are additive; a Tune dataset download loads here unchanged (it carries only the materials that assessment kept).</p>
+    </div>
+
+  </div>
+</div>
+
+<div class="toc-overlay" id="toc" role="dialog" aria-label="Contents">
+  <button class="nav-btn toc-close" id="tocClose">✕ Close</button>
+  <h2 style="color:var(--cal)">Contents</h2>
+  <ul class="toc-list" id="tocList"></ul>
+</div>
+
+<script>
+(function(){
+  const slides = [...document.querySelectorAll('.slide')];
+  let cur = 0;
+  const counter = document.getElementById('counter');
+  function show(i){
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+    counter.textContent = (cur + 1) + ' / ' + slides.length;
+    document.getElementById('prevBtn').disabled = cur === 0;
+    document.getElementById('nextBtn').disabled = cur === slides.length - 1;
+    document.getElementById('slideArea').scrollTop = 0;
+  }
+  document.getElementById('prevBtn').addEventListener('click', () => show(cur - 1));
+  document.getElementById('nextBtn').addEventListener('click', () => show(cur + 1));
+  const toc = document.getElementById('toc');
+  document.getElementById('tocList').innerHTML = slides.map((s, i) => `<li data-i="${i}"><span class="toc-num">${String(i + 1).padStart(2, '0')}</span><span>${s.dataset.title}</span></li>`).join('');
+  document.querySelectorAll('#tocList li').forEach(li => li.addEventListener('click', () => { show(+li.dataset.i); toc.classList.remove('open'); }));
+  document.getElementById('tocBtn').addEventListener('click', () => toc.classList.add('open'));
+  document.getElementById('tocClose').addEventListener('click', () => toc.classList.remove('open'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') toc.classList.remove('open');
+    if (e.target.closest && e.target.closest('input,textarea')) return;
+    if (e.key === 'ArrowRight') show(cur + 1);
+    if (e.key === 'ArrowLeft') show(cur - 1);
+  });
+
+  /* pending tiles — drag to reorder; order kept per viewer (try/catch: storage may be blocked) */
+  const KEY = 'mrpPerf.roadmap.order';
+  const data = JSON.parse(document.getElementById('pendingData').textContent);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+  let order = data.map(d => d.id);
+  try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (Array.isArray(saved)) order = saved.filter(id => data.some(d => d.id === id)).concat(data.map(d => d.id).filter(id => !saved.includes(id))); } catch (e) {}
+  document.getElementById('nPending').textContent = data.length;
+  const grid = document.getElementById('pendingGrid');
+  function render(){
+    grid.innerHTML = order.map((id, i) => { const d = data.find(x => x.id === id);
+      return `<div class="pending-tile" draggable="true" data-id="${d.id}" data-status="${d.status}"><span class="pt-rank">#${i + 1}</span><span class="pt-handle">⋮⋮</span>
+        <div class="pt-version">${esc(d.version)}</div><div class="pt-title">${esc(d.title)} <span class="badge ${d.status}" style="margin-left:4px">${d.status}</span></div><div class="pt-desc">${esc(d.desc)}</div></div>`; }).join('');
+    let dragId = null;
+    grid.querySelectorAll('.pending-tile').forEach(t => {
+      t.addEventListener('dragstart', () => { dragId = t.dataset.id; t.classList.add('dragging'); });
+      t.addEventListener('dragend', () => t.classList.remove('dragging'));
+      t.addEventListener('dragover', (e) => { e.preventDefault(); t.classList.add('drag-over'); });
+      t.addEventListener('dragleave', () => t.classList.remove('drag-over'));
+      t.addEventListener('drop', (e) => {
+        e.preventDefault(); t.classList.remove('drag-over');
+        if (!dragId || dragId === t.dataset.id) return;
+        order = order.filter(x => x !== dragId); order.splice(order.indexOf(t.dataset.id), 0, dragId);
+        try { localStorage.setItem(KEY, JSON.stringify(order)); } catch (err) {}
+        render();
+      });
+    });
+  }
+  document.getElementById('resetOrder').addEventListener('click', () => { order = data.map(d => d.id); try { localStorage.removeItem(KEY); } catch (e) {} render(); });
+  render(); show(0);
+})();
+</script>
+</body>
+</html>

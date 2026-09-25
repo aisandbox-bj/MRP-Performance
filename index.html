@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · v0.1.0-dev (dev tip)
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     RoC  : record-of-change.html        (what changed + how to roll back)
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Dashboard</title>
+<meta name="app-version" content="0.1.0-dev" />
+<meta name="app-released" content="2026-09-25" />
+<meta name="app-repo" content="https://github.com/aisandbox-bj/MRP-Performance" />
+<link rel="stylesheet" href="shared/brand-tokens.css" />
+<link rel="stylesheet" href="shared/perf.css" />
+<style>
+.hero{ display:grid; grid-template-columns:1.4fr 1fr; gap:24px; margin-bottom:24px; }
+@media (max-width:780px){ .hero{ grid-template-columns:1fr; } }
+.hero-headline{ background:var(--bg-panel); border:1px solid var(--border-soft); padding:34px 34px 30px; }
+.hero-headline .pre{ font-family:var(--font-mono); color:var(--accent); letter-spacing:2.5px; font-size:11px; text-transform:uppercase; margin-bottom:14px; }
+.hero-headline h1{ font-family:var(--font-display); font-weight:700; font-size:50px; letter-spacing:3px; line-height:.98; text-transform:uppercase; color:var(--text-pri); margin-bottom:14px; }
+.hero-headline .sub{ font-family:var(--font-heading); font-weight:500; font-size:18px; color:var(--accent); line-height:1.35; margin-bottom:20px; }
+.hero-headline .body{ font-size:13.5px; color:var(--text-sec); line-height:1.6; max-width:560px; }
+.hero-stats{ background:var(--bg-panel); border:1px solid var(--border-soft); padding:22px 26px; display:flex; flex-direction:column; gap:12px; }
+.hero-stats .lab{ font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:4px; }
+.hero-stats .stat-row{ padding:8px 0; border-bottom:1px solid rgba(155,171,168,0.08); }
+.hero-stats .stat-row:last-child{ border-bottom:none; }
+.hero-stats .v{ font-family:var(--font-heading); font-size:26px; font-weight:600; color:var(--text-pri); line-height:1.1; }
+.hero-stats .v.small{ font-family:var(--font-mono); font-size:13px; line-height:1.5; }
+.tile-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-bottom:24px; }
+@media (max-width:900px){ .tile-grid{ grid-template-columns:1fr; } }
+.tile{ background:var(--bg-panel); border:1px solid var(--border-soft); border-top:3px solid var(--accent); padding:22px 24px; display:flex; flex-direction:column; gap:10px; color:inherit; cursor:pointer; transition:border-color .15s; }
+.tile:hover{ border-color:var(--border-strong); }
+.tile .badge{ font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); }
+.tile h3{ font-family:var(--font-display); font-size:22px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-pri); }
+.tile p{ font-size:13px; color:var(--text-sec); line-height:1.5; flex:1; }
+.tile .arrow{ font-family:var(--font-mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent); }
+.questions{ background:var(--bg-panel); border:1px solid var(--border-soft); padding:22px 26px; margin-bottom:24px; }
+.questions h3, .recent h3{ font-family:var(--font-display); font-size:16px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-pri); margin-bottom:12px; }
+.qlist{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px 24px; }
+.qlist div{ font-size:13px; color:var(--text-sec); line-height:1.45; padding-left:14px; position:relative; }
+.qlist div::before{ content:""; position:absolute; left:0; top:7px; width:6px; height:6px; background:var(--calibre-perf); }
+.recent{ background:var(--bg-panel); border:1px solid var(--border-soft); padding:22px 26px; margin-bottom:24px; }
+.recent table{ width:100%; border-collapse:collapse; font-size:13px; }
+.recent th{ text-align:left; font-family:var(--font-mono); font-size:10px; letter-spacing:1.3px; text-transform:uppercase; color:var(--text-muted); padding:6px 8px; border-bottom:1px solid var(--border-soft); }
+.recent td{ padding:8px; border-bottom:1px solid rgba(155,171,168,0.06); color:var(--text-sec); }
+.recent td a{ margin-right:14px; font-family:var(--font-mono); font-size:11px; letter-spacing:1px; text-transform:uppercase; }
+.recent td a.delete{ color:var(--text-muted); }
+.recent td a.delete:hover{ color:var(--status-crit); }
+.empty{ color:var(--text-muted); font-size:13px; }
+.clear-session{ display:flex; align-items:center; gap:20px; background:var(--bg-panel); border:1px solid rgba(251,191,36,.25); padding:18px 24px; }
+.clear-session .t{ font-family:var(--font-display); font-size:16px; letter-spacing:1.3px; text-transform:uppercase; color:var(--text-pri); }
+.clear-session .d{ font-size:12.5px; color:var(--text-sec); line-height:1.5; max-width:760px; }
+.clear-session button{ margin-left:auto; color:var(--status-warn); border-color:var(--status-warn); white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub" href="record-of-change.html" title="Record of Change — version history, what changed, rollback steps">v0.1.0-dev</a>
+  </div>
+  <div class="links">
+    <a href="index.html" class="active">Dashboard</a>
+    <a href="intake/intake.html">Intake</a>
+    <a href="workbench/workbench.html">Workbench</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="record-of-change.html">RoC</a>
+    <a href="user-manual.html">Manual</a>
+  </div>
+</nav>
+
+<main class="shell">
+  <div class="hero">
+    <div class="hero-headline">
+      <div class="pre">Calibre suite · supply-chain performance · SAP-native</div>
+      <h1>MRP<br/>Performance</h1>
+      <div class="sub">How the whole replenishment process actually behaves —<br/>as distributions, not averages.</div>
+      <div class="body">
+        Drop in MB51, the Inventory Master and PR History. The engine rebuilds every material's
+        site stock day by day, follows every PR through release, PO, 3PL and site receipt, and shows
+        where the process deviates — and by how much — for any segment you build: top-moving parts,
+        high-value items, one supplier, V1 vs PD. Every figure drills down to the orders behind it.
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-row"><span class="lab">Saved datasets</span><div class="v" id="statIntakes">0</div></div>
+      <div class="stat-row"><span class="lab">Current dataset</span><div class="v small" id="statCurrent">—</div></div>
+      <div class="stat-row"><span class="lab">Last save</span><div class="v small" id="statLast">—</div></div>
+    </div>
+  </div>
+
+  <div class="tile-grid">
+    <a href="intake/intake.html" class="tile">
+      <span class="badge">01 · Intake</span>
+      <h3>New dataset</h3>
+      <p>Upload MB51 + Inventory Master + PR History. Same intake engine as Calibre Tune: auto-mapping, data-quality gate, save or download the canonical JSON.</p>
+      <span class="arrow">Start →</span>
+    </a>
+    <a href="workbench/workbench.html" class="tile">
+      <span class="badge">02 · Workbench</span>
+      <h3>Open workbench</h3>
+      <p>Distribution views of MRP response, PR → PO, supplier, 3PL, plan vs actual, order sizing and over / under ordering — scoped by drop-in segment tiles.</p>
+      <span class="arrow">Open →</span>
+    </a>
+    <a href="#" id="tileUpload" class="tile">
+      <span class="badge">03 · Resume</span>
+      <h3>Open .json</h3>
+      <p>Load a saved dataset straight into the Workbench — from this app or a Calibre Tune download (read as a performance run over the materials it carries).</p>
+      <span class="arrow">Choose file →</span>
+    </a>
+  </div>
+  <input type="file" id="uploadJson" accept=".json" class="hidden" />
+
+  <div class="questions">
+    <h3>Questions this answers</h3>
+    <div class="qlist">
+      <div>How often does MRP raise PRs — and when does it go quiet while parts wait?</div>
+      <div>How fast does a PR follow stock crossing Min / SS?</div>
+      <div>How many PRs are cancelled — real cancellations vs MRP churn?</div>
+      <div>How long do PRs wait for approval and for a buyer?</div>
+      <div>How long do suppliers (manufacturers) take to the 3PL?</div>
+      <div>How long does the 3PL take to get goods to site?</div>
+      <div>Do V1 orders replenish to Max — or limp along in small top-ups?</div>
+      <div>Where are we over- and under-ordering?</div>
+      <div>Where does the process deviate from plan, and by how much — month by month?</div>
+    </div>
+  </div>
+
+  <div class="recent">
+    <h3>Saved datasets</h3>
+    <table id="recentTable"><thead><tr><th>Name</th><th>Saved</th><th></th></tr></thead><tbody id="recentBody"></tbody></table>
+    <div id="recentEmpty" class="empty hidden">Nothing saved yet — start with a new dataset above.</div>
+  </div>
+
+  <div class="clear-session">
+    <div>
+      <div class="t">Clear this app's session data</div>
+      <div class="d">Removes every dataset saved by <b>MRP Performance</b> in this browser and its current-dataset slot. Settings and KPI targets are kept. <b>Calibre Tune's saved data is never touched</b> — the two apps keep separate storage.</div>
+    </div>
+    <button id="btnClear">⌫ Clear session data</button>
+  </div>
+</main>
+
+<script src="shared/canonical-schema.js"></script>
+<script src="shared/storage.js"></script>
+<script>
+(async () => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+  const idx = (await AppStorage.get('intakes.index')) || [];
+  $('#statIntakes').textContent = idx.length.toString();
+  $('#statLast').textContent = idx[0] ? String(idx[0].createdAt || '').replace('T', ' · ').slice(0, 19) : 'never';
+  const cur = await AppStorage.get('intake.current');
+  $('#statCurrent').textContent = cur ? (cur.metadata && cur.metadata.assessmentName) || 'unnamed' : 'none';
+
+  if (!idx.length) { $('#recentTable').classList.add('hidden'); $('#recentEmpty').classList.remove('hidden'); }
+  else {
+    $('#recentBody').innerHTML = idx.slice(0, 20).map(e => `<tr><td>${esc(e.name)}</td><td class="mono">${esc(String(e.createdAt || '').replace('T', ' ').slice(0, 16))}</td>
+      <td><a href="#" class="open" data-name="${esc(e.name)}">Open →</a><a href="#" class="delete" data-name="${esc(e.name)}">Delete</a></td></tr>`).join('');
+    document.querySelectorAll('a.open').forEach(a => a.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const json = await AppStorage.get('intake.' + a.dataset.name);
+      if (!json) { alert('Dataset not found in this browser.'); return; }
+      await AppStorage.set('intake.current', json);
+      location.href = 'workbench/workbench.html';
+    }));
+    document.querySelectorAll('a.delete').forEach(a => a.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const name = a.dataset.name;
+      if (!confirm(`Delete saved dataset "${name}" from this browser?\n\nThis cannot be undone. Downloaded .json files on disk are not affected.`)) return;
+      await AppStorage.del('intake.' + name);
+      const next = ((await AppStorage.get('intakes.index')) || []).filter(e => e.name !== name);
+      await AppStorage.set('intakes.index', next);
+      const c = await AppStorage.get('intake.current');
+      if (c && c.metadata && c.metadata.assessmentName === name) await AppStorage.del('intake.current');
+      location.reload();
+    }));
+  }
+
+  $('#tileUpload').addEventListener('click', (e) => { e.preventDefault(); $('#uploadJson').click(); });
+  $('#uploadJson').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const json = JSON.parse(await f.text());
+      delete json._analystData;     // Tune's analyst layer — never restored here
+      const v = CanonicalSchema.validateShape(json);
+      if (!v.ok) { alert('Not a canonical dataset:\n\n' + v.errors.join('\n')); return; }
+      await AppStorage.set('intake.current', json);
+      location.href = 'workbench/workbench.html';
+    } catch (err) { alert('Could not read that file:\n\n' + err.message); }
+    e.target.value = '';
+  });
+
+  $('#btnClear').addEventListener('click', async () => {
+    const keys = (await AppStorage.keys()).filter(k => !k.startsWith('settings.'));
+    if (!keys.length) { alert('Nothing to clear.'); return; }
+    if (!confirm(`Remove ${keys.length} saved item${keys.length === 1 ? '' : 's'} from MRP Performance in this browser?\n\nSettings and KPI targets are kept. Calibre Tune's data is not affected. This cannot be undone.`)) return;
+    for (const k of keys) await AppStorage.del(k);
+    location.reload();
+  });
+})();
+</script>
+</body>
+</html>

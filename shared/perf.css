@@ -1,0 +1,112 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   shared/perf.css · Calibre MRP Performance v0.1.0-dev
+   App-level additions on top of the borrowed Calibre brand-tokens.css:
+   nav app label, chart text + tooltip, stat strips, drill tables.
+═══════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --calibre-perf: #12A7B0;          /* MRP Performance — chart slot 1 cyan */
+  --chart-surface: #091F2D;         /* the surface the chart palette was validated on */
+}
+
+/* nav: app label next to the Calibre wordmark */
+.appnav .brand .brand-app{
+  font-family:var(--font-heading);
+  font-weight:600;
+  font-size:13px;
+  letter-spacing:1px;
+  text-transform:none;
+  color:var(--accent);
+  border-left:1px solid var(--border-soft);
+  padding-left:10px;
+  margin-left:2px;
+}
+
+/* ─── chart text ─────────────────────────────────────────────────────────── */
+.pc-svg{ display:block; max-width:100%; overflow:visible; }
+.pc-svg text{ font-family:var(--font-mono); }
+.pc-ax{ font-size:10.5px; fill:var(--text-muted); font-variant-numeric:tabular-nums; }
+.pc-ax.pc-warn{ fill:var(--status-warn); }
+.pc-mk{ font-size:10.5px; fill:var(--text-pri); }
+.pc-mk.pc-tgt{ fill:var(--text-pri); font-weight:500; }
+.pc-ttl{ font-size:10.5px; fill:var(--text-muted); letter-spacing:.8px; }
+.pc-sub{ font-size:11px; fill:var(--text-sec); letter-spacing:.6px; }
+.pc-svg [data-hit]{ cursor:pointer; outline:none; }
+.pc-svg [data-hit]:hover, .pc-svg [data-hit]:focus{ fill:rgba(240,244,243,0.05); }
+.pc-svg .pc-sel{ filter:brightness(1.35); }
+.pc-empty{ padding:28px; text-align:center; color:var(--text-muted); font-family:var(--font-mono); font-size:12px; }
+
+.pc-tip{
+  position:fixed; z-index:950; display:none; pointer-events:none;
+  background:#0B1622; border:1px solid var(--border-strong);
+  padding:8px 10px; min-width:150px; max-width:320px;
+  font-family:var(--font-body); font-size:12.5px; color:var(--text-sec);
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+}
+.pc-tip-h{ font-family:var(--font-mono); font-size:10.5px; letter-spacing:.8px; color:var(--text-muted); margin-bottom:5px; }
+.pc-tip-r{ display:flex; align-items:center; gap:6px; line-height:1.5; }
+.pc-tip-r b{ color:var(--text-pri); font-weight:600; font-variant-numeric:tabular-nums; }
+.pc-tip-k{ width:12px; height:3px; border-radius:2px; flex-shrink:0; }
+.pc-tip-l{ color:var(--text-muted); }
+
+.pc-legend{ display:flex; flex-wrap:wrap; gap:14px; margin:4px 0 6px; font-size:12px; color:var(--text-sec); }
+.pc-lg{ display:inline-flex; align-items:center; gap:6px; }
+.pc-sw{ width:12px; height:12px; border-radius:2px; display:inline-block; }
+.pc-sw.line{ height:2px; width:16px; }
+
+/* ─── cards / stat strip ─────────────────────────────────────────────────── */
+.card{
+  background:var(--chart-surface);
+  border:1px solid var(--border-soft);
+  border-radius:var(--r-md);
+  padding:16px 18px 14px;
+  margin-bottom:16px;
+}
+.card-h{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+.card-t{ font-family:var(--font-heading); font-weight:600; font-size:16px; color:var(--text-pri); letter-spacing:.3px; }
+.card-s{ font-size:12.5px; color:var(--text-muted); line-height:1.45; }
+.card-actions{ margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.btn-sm{ padding:5px 10px; font-size:11.5px; }
+.btn-sm.on{ border-color:var(--accent); color:var(--accent); background:rgba(31,206,216,.06); }
+
+.stats{ display:grid; grid-template-columns:repeat(auto-fill, minmax(128px, 1fr)); gap:10px; margin:6px 0 12px; }
+.stat{ background:rgba(255,255,255,.025); border:1px solid rgba(155,171,168,.10); padding:9px 11px; }
+.stat .l{ font-family:var(--font-mono); font-size:9.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:3px; }
+.stat .v{ font-family:var(--font-heading); font-weight:600; font-size:21px; color:var(--text-pri); line-height:1.1; }
+.stat .v small{ font-size:12px; color:var(--text-muted); font-weight:500; margin-left:3px; }
+.stat .d{ font-size:11px; color:var(--text-muted); margin-top:2px; line-height:1.35; }
+.stat.warn .v{ color:var(--status-warn); }
+.stat.clickable{ cursor:pointer; }
+.stat.clickable:hover{ border-color:var(--border-strong); }
+
+/* ─── tables ─────────────────────────────────────────────────────────────── */
+.tblwrap{ overflow:auto; max-height:460px; border:1px solid var(--border-soft); }
+.dt{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.dt th{
+  position:sticky; top:0; z-index:1;
+  background:var(--bg-elevated); color:var(--text-muted);
+  font-family:var(--font-mono); font-weight:500; font-size:10px; letter-spacing:1px; text-transform:uppercase;
+  text-align:left; padding:7px 9px; border-bottom:1px solid var(--border-soft); white-space:nowrap; cursor:pointer; user-select:none;
+}
+.dt th.num, .dt td.num{ text-align:right; }
+.dt th .srt{ color:var(--accent); margin-left:3px; }
+.dt td{ padding:6px 9px; border-bottom:1px solid rgba(155,171,168,.06); color:var(--text-sec); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.dt td.num{ font-family:var(--font-mono); font-size:12px; color:var(--text-pri); }
+.dt td.wrap{ white-space:normal; min-width:180px; }
+.dt tr:nth-child(even) td{ background:rgba(255,255,255,.018); }
+.dt tr.click{ cursor:pointer; }
+.dt tr.click:hover td{ background:rgba(31,206,216,.06); }
+.dt td .bar{ display:inline-block; height:8px; background:var(--calibre-perf); border-radius:0 2px 2px 0; vertical-align:middle; margin-right:6px; }
+.dt td .st-open{ color:var(--accent-soft); }
+.dt td .st-oos{ color:var(--status-warn); }
+.muted-note{ font-size:11.5px; color:var(--text-muted); margin-top:6px; line-height:1.45; }
+.warn-note{ font-size:12px; color:var(--status-warn); margin:6px 0; line-height:1.45; }
+.chip{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:var(--font-mono); font-size:10.5px; letter-spacing:.8px;
+  padding:3px 8px; border:1px solid var(--border-strong); color:var(--accent); background:rgba(31,206,216,.05);
+}
+.chip button{ padding:0 4px; border:none; font-size:12px; line-height:1; color:var(--text-muted); }
+.chip button:hover{ background:none; color:var(--text-pri); }
+
+.toast{ position:fixed; }

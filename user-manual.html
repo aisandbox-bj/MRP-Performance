@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · User manual · v0.1.0-dev
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Manual</title>
+<meta name="app-version" content="0.1.0-dev" />
+<link rel="stylesheet" href="shared/brand-tokens.css" />
+<link rel="stylesheet" href="shared/perf.css" />
+<style>
+.doc{ display:grid; grid-template-columns:230px minmax(0, 1fr); gap:28px; max-width:1180px; margin:0 auto; padding:28px 24px 90px; position:relative; z-index:1; }
+@media (max-width:860px){ .doc{ grid-template-columns:1fr; } .toc{ position:static !important; } }
+.toc{ position:sticky; top:74px; align-self:start; display:flex; flex-direction:column; gap:3px; }
+.toc a{ font-size:13px; color:var(--text-sec); padding:4px 8px; border-left:2px solid transparent; }
+.toc a:hover{ color:var(--accent); border-left-color:var(--accent); }
+.toc .lab{ font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }
+article h1{ font-family:var(--font-display); font-size:38px; letter-spacing:2px; text-transform:uppercase; color:var(--text-pri); margin-bottom:6px; }
+article .lead{ font-size:15px; color:var(--text-sec); line-height:1.6; margin-bottom:20px; max-width:800px; }
+article h2{ font-family:var(--font-heading); font-size:22px; color:var(--text-pri); margin:34px 0 10px; padding-top:8px; border-top:1px solid var(--border-soft); }
+article h3{ font-family:var(--font-heading); font-size:16px; color:var(--accent); margin:18px 0 6px; }
+article p, article li{ font-size:14px; color:var(--text-sec); line-height:1.65; }
+article p{ margin-bottom:10px; max-width:860px; }
+article ul, article ol{ margin:0 0 12px 22px; max-width:860px; }
+article li{ margin-bottom:5px; }
+article b{ color:var(--text-pri); }
+article code{ font-family:var(--font-mono); font-size:12.5px; color:var(--accent-soft); background:rgba(255,255,255,.04); padding:1px 5px; }
+.callout{ border:1px solid rgba(251,191,36,.3); background:rgba(251,191,36,.05); padding:10px 14px; margin:12px 0; font-size:13.5px; color:var(--text-sec); max-width:860px; }
+table.m{ border-collapse:collapse; font-size:13px; margin:8px 0 14px; max-width:900px; width:100%; }
+table.m th{ text-align:left; font-family:var(--font-mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:6px 8px; border-bottom:1px solid var(--border-soft); }
+table.m td{ padding:7px 8px; border-bottom:1px solid rgba(155,171,168,.07); color:var(--text-sec); vertical-align:top; }
+table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
+</style>
+</head>
+<body>
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub" href="record-of-change.html">v0.1.0-dev · Manual</a>
+  </div>
+  <div class="links">
+    <a href="index.html">Dashboard</a>
+    <a href="intake/intake.html">Intake</a>
+    <a href="workbench/workbench.html">Workbench</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="record-of-change.html">RoC</a>
+    <a href="user-manual.html" class="active">Manual</a>
+  </div>
+</nav>
+
+<div class="doc">
+  <nav class="toc" aria-label="Contents">
+    <div class="lab">Contents</div>
+    <a href="#what">1 · What it's for</a>
+    <a href="#data">2 · Getting data in</a>
+    <a href="#segments">3 · Segments &amp; the time window</a>
+    <a href="#reading">4 · Reading a distribution</a>
+    <a href="#views">5 · The views</a>
+    <a href="#targets">6 · Settings &amp; KPI targets</a>
+    <a href="#assume">7 · Definitions &amp; assumptions</a>
+    <a href="#storage">8 · Where your data lives</a>
+  </nav>
+  <article>
+    <h1>MRP Performance</h1>
+    <p class="lead">How the whole replenishment process behaves — MRP response, the internal, supplier and 3PL legs, order sizing and stock outcomes — across every material in your SAP extracts, shown as distributions you can drill into.</p>
+
+    <h2 id="what">1 · What it's for</h2>
+    <p>Calibre Tune and Trace start from one material and ask whether it is healthy. This app starts from the process and asks where it breaks, how often and by how much — and for which materials. It uses the same SAP extracts and the same data engine as Tune, so a lead time here ties to the one Trace shows for the same order.</p>
+    <p>It answers questions like: how often MRP raises PRs and whether it goes quiet while parts wait · how fast a PR follows stock crossing Min · how many PRs are really cancelled · how long approval, buyers, suppliers and the 3PL take · whether V1 parts are ordered up to Max or topped up in small amounts · where stock arrives when it isn't needed or after the part has run out · how actual lead times compare with SAP's plan.</p>
+
+    <h2 id="data">2 · Getting data in</h2>
+    <p>Open <b>Intake</b>. The assessment type is already set to <b>Supply-chain performance</b>. Upload three files (Excel or CSV):</p>
+    <table class="m">
+      <tr><th>File</th><th>Must include</th><th>Tip</th></tr>
+      <tr><td>MB51</td><td>Posting Date, Material, Movement Type, Quantity, <b>Purchase order</b></td><td>All movement types for the plant; 12+ months. Value, entry date and storage location are used when present.</td></tr>
+      <tr><td>Inventory Master</td><td>Material, Unrestricted stock, MRP Type, Reorder Point, Maximum Stock Level, Safety Stock, Mfg Name, Moving price</td><td>Set the <b>extract date</b> (under the upload) — the stock rebuild starts from it. A date in the file name is picked up automatically.</td></tr>
+      <tr><td>PR History</td><td>Purchase Requisition, Item, Material, Requisition date, Release Date, Purchase order, Purchase Order Date, Changed On, Deletion Indicator, Processing status, Creation indicator, Quantity requested, <b>Delivery Date</b></td><td>Delivery Date is the need-by date — it powers the plan-vs-actual view.</td></tr>
+    </table>
+    <p>The data-quality gate then shows what it found — including how many PR lines carry a need-by date and how many POs find a receipt in MB51. Name the dataset, <b>Save</b> (kept in this browser) or <b>Download .json</b> (a file you keep), then <b>Open in Workbench</b>.</p>
+    <p>A dataset downloaded from Calibre Tune also opens here (Dashboard → Open .json). Tune trims its downloads to that assessment's materials, so the review covers only those — the header says “Tune dataset”.</p>
+
+    <h2 id="segments">3 · Segments &amp; the time window</h2>
+    <p>Everything in the Workbench is scoped by the panel at the top.</p>
+    <h3>Time window</h3>
+    <p><b>All · 24 m · 12 m · 6 m · 3 m · Custom</b>. Each leg is placed in time by its own starting event: PR → PO by the month the PR was created, supplier by the month the PO was placed, 3PL by the month goods reached the 3PL, stock events by the day they happened.</p>
+    <h3>Segment tiles</h3>
+    <p>Drag a dimension from the palette onto the tile area (or just click it). Tiles combine with AND. Click a tile's header to open or close its settings; ✕ removes it.</p>
+    <ul>
+      <li><b>Number tiles</b> (movement, consumption events, consumption value, unit cost, stock value, stock on hand, material lead time, PR lines) have three modes: <b>Quartile</b> — tick Q1–Q4; the tile shows each quartile's cut points, and they're cut across all materials so they don't move as you add tiles · <b>Top / bottom %</b> · <b>Range</b> (min / max).</li>
+      <li><b>Pick-list tiles</b> (manufacturer, MRP type, material group, purchasing group, stock status) — search, tick values, choose <b>Include</b> or <b>Exclude</b>.</li>
+      <li><b>Material / text</b> — number or description contains.</li>
+      <li><b>PR trigger</b> — MRP-created, manual or unknown; applies to PR lines, not to stock events.</li>
+    </ul>
+    <p>Examples: <i>PR → PO on the top-moving quarter of parts</i> = Movement → Q4, then Internal. <i>3PL performance on items over $10,000</i> = Unit cost → Range, min 10000, then 3PL. <i>One supplier's lead time</i> = Manufacturer → pick it, then Supplier. Clicking a row in any breakdown table adds that value as a tile.</p>
+
+    <h2 id="reading">4 · Reading a distribution</h2>
+    <ul>
+      <li><b>Closed</b> — the leg finished. <b>Still open</b> — it hasn't yet; drawn lighter, at its age so far (“at least this long”). They are never dropped: in recent months the slow ones are exactly the ones still open.</li>
+      <li><b>Out of sequence</b> (amber, far left, “!”) — the end of the leg is dated before its start, e.g. a PO dated before its PR. Listed, never rounded to zero.</li>
+      <li><b>P10 / median / P90</b> count still-open items. A <b>“≥”</b> means open items sit at or below that point, so the true value is at least that. The closed-only figure is shown underneath.</li>
+      <li><b>By month</b> — one box per month: box = middle half, whisker = P10–P90, white tick = median of closed items; the caret marks the P90 once open items are counted. The % under each month is how many have closed; months under 90% are dimmed (provisional). Click a month to focus the view on it.</li>
+      <li><b>Breakdown</b> — every manufacturer / MRP type / group side by side with its spread. Sort any column.</li>
+      <li><b>Drill</b> — click any bar, or use Fast tail / Slow tail / Still open / Out of sequence, to list the orders behind it. Sort, and export to CSV. <b>▦ Table</b> shows each chart's numbers as a table.</li>
+    </ul>
+
+    <h2 id="views">5 · The views</h2>
+    <table class="m">
+      <tr><th>View</th><th>What it answers</th></tr>
+      <tr><td>Overview</td><td>A distribution summary per leg plus trigger response, stockouts, V1 order sizing and PR outcomes. Click a tile to open its view.</td></tr>
+      <tr><td>Trigger → PR response</td><td>Each time stock fell below its trigger line: was anything on order, and if not, how long until a PR. The “what was happening” table splits every crossing.</td></tr>
+      <tr><td>Exposure &amp; stockouts</td><td>Stockout length, split into “order in flight” (late supply) and “nothing on order” (trigger problem); materials below the line over time.</td></tr>
+      <tr><td>MRP cadence &amp; quiet stretches</td><td>MRP-created PRs per day / week / month next to trigger debt and manual PRs; the lengths of quiet stretches and the debt during them; which weekday MRP runs.</td></tr>
+      <tr><td>PR outcomes</td><td>Converted, still open, MRP churn, genuinely cancelled — per month; how long before cancellations; how long today's open PRs have waited.</td></tr>
+      <tr><td>Internal · PR → PO</td><td>Total PR → PO, approval (PR → release) and buyer (release → PO) — by purchasing group by default.</td></tr>
+      <tr><td>Supplier · PO → 3PL</td><td>PO to arrival at the 3PL, by manufacturer.</td></tr>
+      <tr><td>3PL · 3PL → site</td><td>Arrival at the 3PL to receipt at site, plus what is sitting at the 3PL now.</td></tr>
+      <tr><td>End to end</td><td>PR created to received at site.</td></tr>
+      <tr><td>Against plan &amp; process paths</td><td>Days late against the PR's need-by date; SAP's planned lead time vs actual; how each PR line actually travelled.</td></tr>
+      <tr><td>Order sizing (V1)</td><td>Ordered qty ÷ gap to Max at each PR; stock after each receipt as a share of Max; reorders per year vs what the Min–Max band implies.</td></tr>
+      <tr><td>Over / under ordering</td><td>Stock on hand when each receipt arrived vs the trigger line; receipts that pushed a part above Max ($ at unit cost); shelf time before first use.</td></tr>
+      <tr><td>Data checks &amp; assumptions</td><td>Every assumption, a live parity check against Tune's own modules, impossible dates, negative rebuilt stock, stale POs, receipts with no PR line.</td></tr>
+    </table>
+
+    <h2 id="targets">6 · Settings &amp; KPI targets</h2>
+    <p><b>⚙ Settings &amp; targets</b> (top right of the Workbench):</p>
+    <ul>
+      <li><b>MRP churn window</b> (default 2 days) · <b>provisional until % closed</b> (default 90%) · <b>stale PO after</b> (default 365 days).</li>
+      <li><b>KPI targets</b> in days for each leg — leave them blank until you've seen the baseline. Once set, charts draw the target and each view shows the share within target.</li>
+    </ul>
+
+    <h2 id="assume">7 · Definitions &amp; assumptions</h2>
+    <ul>
+      <li><b>107</b> = goods arrived at the 3PL; <b>109</b> = received at site; first date per PO + material.</li>
+      <li><b>Stock</b> is rebuilt day by day from MB51, walking back from the Inventory Master stock on its extract date, with the same movement-type rules as Tune (site stock only).</li>
+      <li><b>Trigger line</b> = Min for V1, safety stock for PD. <b>PD without safety stock</b> is driven by demand (reservations), which these files don't carry, so its zero-stock days are counted as stockouts but not as trigger failures. Same for V1 with Min 0.</li>
+      <li><b>Cover</b> = an open PO or goods at the 3PL. A PR on its own is not cover.</li>
+      <li><b>Cancelled</b> = deletion flag + processing status N. <b>MRP churn</b> = MRP-created, never a PO, cancelled within the churn window of creation (Changed On stands in for the cancel date).</li>
+      <li><b>Creation indicator</b>: B = MRP, R = manual, blank = unknown.</li>
+      <li><b>Manufacturer stands in for vendor.</b> Order qty = PR qty (no PO data yet).</li>
+      <li><b>Min / Max / SS / MRP type are today's values.</b> Changes during the window can't be seen.</li>
+    </ul>
+    <div class="callout"><b>Open question:</b> an earlier note in the borrowed stock-rebuild module records 107 as “shipped from the 3PL toward site”. If that's right, the 3PL leg is transit only and 3PL dwell sits inside the supplier leg. Please confirm — see the Roadmap.</div>
+
+    <h2 id="storage">8 · Where your data lives</h2>
+    <p>Everything runs in your browser. Saved datasets live in this browser's storage under this app's own name (<code>mrpPerf</code>), separate from Calibre Tune — clearing one never touches the other. Nothing is sent anywhere. The GitHub repository holds the app's code only; SAP extracts and datasets are never committed to it.</p>
+  </article>
+</div>
+</body>
+</html>

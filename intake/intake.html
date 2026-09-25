@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · v0.1.0-dev (dev tip)
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     RoC  : ../record-of-change.html     (what changed + how to roll back)
+     BORROWED from Calibre Tune intake (Inventory_Optimization @ 2896842);
+     local changes tagged PERF-* (see intake.js header).
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MRP Performance · Intake</title>
+<meta name="app-version" content="0.1.0-dev" />
+<meta name="app-released" content="2026-09-25" />
+<link rel="stylesheet" href="../shared/brand-tokens.css" />
+<link rel="stylesheet" href="../shared/perf.css" />
+<link rel="stylesheet" href="intake.css" />
+</head>
+<body>
+
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub" href="../record-of-change.html" title="Record of Change — version history, what changed, rollback steps">v0.1.0-dev · Intake</a>
+  </div>
+  <div class="links">
+    <a href="../index.html">Dashboard</a>
+    <a href="intake.html" class="active">Intake</a>
+    <a href="../workbench/workbench.html">Workbench</a>
+    <a href="../roadmap.html">Roadmap</a>
+    <a href="../record-of-change.html">RoC</a>
+    <a href="../user-manual.html">Manual</a>
+  </div>
+</nav>
+
+<main class="shell">
+  <div class="intake-grid">
+
+    <!-- ─── METADATA HEADER ─── -->
+    <section class="panel">
+      <div class="panel-eyebrow">Intake engine</div>
+      <div class="panel-title">Build a supply-chain performance dataset.</div>
+      <div class="panel-sub">Upload MB51, the Inventory Master and PR History, confirm the data-quality gate, save. The input files decide the scope — every material that moved or was requisitioned is reviewed. Same canonical JSON as Calibre Tune, so a Tune dataset download also loads here.</div>
+      <div class="row" style="gap:14px;">
+        <div style="flex:1.2;">
+          <label class="label" style="display:block;margin-bottom:4px;">Assessment name <span style="color:var(--status-warn);">*</span></label>
+          <input id="assessmentName" type="text" placeholder="e.g. Yellow-Orange Fleet 2026 Q2" required aria-required="true" />
+          <div id="assessmentNameError" class="field-error" style="display:none;">Required — please name this assessment before saving or running analysis.</div>
+        </div>
+        <div style="flex:1;">
+          <label class="label" style="display:block;margin-bottom:4px;">Created by</label>
+          <input id="createdBy" type="text" placeholder="operator name" />
+        </div>
+        <div style="flex:.7;">
+          <label class="label" style="display:block;margin-bottom:4px;">Run date</label>
+          <input id="runDate" type="date" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── REUSE COMMON DATA FROM SAVED INTAKE (v2.1 — moved here, modal-driven) ─── -->
+    <section class="panel reuse-panel" id="reusePanel" hidden>
+      <div class="panel-eyebrow" style="color:var(--accent-glow, var(--accent));">Batch mode</div>
+      <div class="panel-title">Reuse common data from a previously-saved intake.</div>
+      <div class="panel-sub" style="margin-bottom:14px;">
+        Running multiple batches against the same SAP extracts? Skip re-uploading the heavy files —
+        pick a source intake and choose which of MB51 / IW39 / Fleet Master / Inventory Master to
+        hydrate from it. Assessment type, scope and parameters stay yours to pick fresh for each batch.
+      </div>
+      <div class="row" style="gap:12px;align-items:center;">
+        <button id="reuseOpen" class="primary" disabled>↻ Pick source + datasets…</button>
+        <span id="reuseSummary" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);"></span>
+      </div>
+      <div id="reuseStatus" class="reuse-status" style="display:none;"></div>
+    </section>
+
+    <!-- ─── ALIGNMENT ACKNOWLEDGEMENT MODAL (APP-E6 · 2026-05-15) ───
+         Fires once per new assessment, BEFORE any file upload, to force the
+         operator to confirm their SAP exports describe the same operational
+         scope. Backdrop / ✕ do NOT acknowledge — only the primary button does. -->
+    <div id="alignModal" class="align-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="alignModalTitle">
+      <div class="align-backdrop"></div>
+      <div class="align-dialog">
+        <div class="align-head">
+          <div class="align-eyebrow">Data alignment check</div>
+          <h3 id="alignModalTitle">Confirm your uploads describe the same scope.</h3>
+        </div>
+        <div class="align-body">
+          <p class="align-lead">
+            Before uploading SAP exports for this assessment, confirm that every file you're about to drop in describes the <b>same operational scope</b>. Mismatches between files cause downstream math (consumption rates, stock-on-hand, traffic-light recommendations) to be silently wrong.
+          </p>
+          <ul class="align-checklist">
+            <li>
+              <div class="align-dim">Plant / Location / Warehouse</div>
+              <div class="align-desc">Every file (MB51, IW39, Inventory Master, Material→Vendor) is filtered to the <i>same</i> set of plant codes. Total-inventory + plant-only-consumption is the classic mismatch.</div>
+            </li>
+            <li>
+              <div class="align-dim">Date range / period coverage</div>
+              <div class="align-desc">MB51 movement window and IW39 work-order window cover the same period. Mismatched windows distort rates and WO counts.</div>
+            </li>
+            <li>
+              <div class="align-dim">Material universe</div>
+              <div class="align-desc">Inventory Master is a <i>superset</i> of every material that appears in MB51. Missing master records cause silent drops at parse time.</div>
+            </li>
+            <li>
+              <div class="align-dim">Fleet / Equipment scope</div>
+              <div class="align-desc">Fleet Master lists every unit that appears in IW39 for this assessment. Orphan units break the fleet-scope filter downstream.</div>
+            </li>
+          </ul>
+        </div>
+        <div class="align-foot">
+          <button id="alignConfirm" class="primary" type="button">I confirm the uploads are aligned</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── REUSE COMMON DATA MODAL ─── -->
+    <div id="reuseModal" class="mass-modal hidden" aria-hidden="true">
+      <div class="mass-backdrop"></div>
+      <div class="mass-dialog" style="width:min(820px, 96vw);">
+        <div class="mass-head">
+          <div class="mass-title">
+            <span class="lab">Batch mode</span>
+            <h3>Reuse common data</h3>
+          </div>
+          <div class="mass-mode-pill">Pick source + datasets</div>
+          <button id="reuseModalClose" class="mass-close" title="Close">✕</button>
+        </div>
+        <div class="mass-body" id="reuseModalBody"></div>
+        <div class="mass-foot" id="reuseModalFoot"></div>
+      </div>
+    </div>
+
+    <!-- ─── STEP 0 — ASSESSMENT TYPE ─── -->
+    <section class="step" id="step0">
+      <div class="step-head">
+        <div class="step-num">00</div>
+        <div class="step-title">Assessment type</div>
+        <div class="step-status" id="step0Status">pick one to proceed</div>
+      </div>
+      <div class="step-body">
+        <div class="panel-sub" style="margin-bottom:14px;">
+          The assessment type determines which inputs you need to upload and which scope strategies are available downstream. Pick one — each upload zone is then flagged <b>required</b>, <b>optional</b> (loadable, unlocks a feature), or <b>not used</b> for that type. Nothing is blocked: you can still load an optional file (e.g. IW39 / Fleet Master for "Where used") on any assessment.
+        </div>
+        <div class="atype-grid">
+          <!-- PERF-INT-TYPE — the only type this app offers; Tune's three types
+               stay in the markup (hidden) so the borrowed JS keeps its hooks. -->
+          <label class="atype-card" data-atype="scPerformance">
+            <input type="radio" name="atype" value="scPerformance" />
+            <div class="atype-head">
+              <span class="atype-tag">P · SUPPLY-CHAIN PERFORMANCE</span>
+              <span class="atype-check"></span>
+            </div>
+            <div class="atype-title">Supply-chain performance</div>
+            <div class="atype-desc">Every material in the files — how MRP responds, how long PRs wait, how the internal, supplier and 3PL legs perform, and whether stock is replenished to plan. The files decide the scope.</div>
+            <div class="atype-needs"><b>Needs:</b> MB51 · Inventory Master · PR History</div>
+          </label>
+
+          <label class="atype-card hidden" data-atype="unitFloc">
+            <input type="radio" name="atype" value="unitFloc" />
+            <div class="atype-head">
+              <span class="atype-tag">A · UNIT / FLOC</span>
+              <span class="atype-check"></span>
+            </div>
+            <div class="atype-title">UNIT / FLOC based</div>
+            <div class="atype-desc">Fleet-driven assessment. Filter MB51 through IW39 work orders attached to the chosen equipment unit(s) or functional location(s).</div>
+            <div class="atype-needs"><b>Needs:</b> MB51 · IW39 · Fleet Master · Inventory Master</div>
+          </label>
+
+          <label class="atype-card hidden" data-atype="userList">
+            <input type="radio" name="atype" value="userList" />
+            <div class="atype-head">
+              <span class="atype-tag">B · USER LIST</span>
+              <span class="atype-check"></span>
+            </div>
+            <div class="atype-title">User-specified list</div>
+            <div class="atype-desc">Run the pipeline against a known material list — paste, or upload as CSV / XLSX. No fleet filter applied; MB51 is consumed as-is.</div>
+            <div class="atype-needs"><b>Needs:</b> User list · MB51 · Inventory Master</div>
+          </label>
+
+          <label class="atype-card hidden" data-atype="paramSearch">
+            <input type="radio" name="atype" value="paramSearch" />
+            <div class="atype-head">
+              <span class="atype-tag">C · PARAMETER SEARCH</span>
+              <span class="atype-check"></span>
+            </div>
+            <div class="atype-title">Parameter search</div>
+            <div class="atype-desc">Discover a material set by filtering Inventory Master + MB51 against multiple dimensions (Material Group · Manufacturer · MB51 movement · Value · Qty on hand · Inventory Type · MRP indicator).</div>
+            <div class="atype-needs"><b>Needs:</b> MB51 · Inventory Master</div>
+          </label>
+        </div>
+        <label class="mrpreq-optin" id="mrpReqOptin" title="Makes Fleet Master + IW39 required">
+          <input type="checkbox" id="mrpReqOptinChk" />
+          <span>This run will produce the <b>MRP Request Template</b> — flags <b>Fleet Master</b> + <b>IW39</b> as <b>required</b> (they resolve each part to its fleet make / model / site number; without them the template can't be built).</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- ─── STEP 1 — UPLOAD ─── -->
+    <section class="step" id="step1">
+      <div class="step-head">
+        <div class="step-num">01</div>
+        <div class="step-title">Upload source files</div>
+        <div class="step-status" id="step1Status">awaiting assessment type</div>
+      </div>
+      <div class="step-body">
+        <div class="upload-legend" id="uploadLegend">
+          <span class="ul-item"><span class="ul-mark req">★</span> Required</span>
+          <span class="ul-item"><span class="ul-mark opt">☆</span> Optional — loadable, unlocks a feature</span>
+          <span class="ul-item"><span class="ul-mark na">—</span> Not used for this assessment type</span>
+        </div>
+        <div class="upload-grid">
+          <label class="drop" data-source="mb51" data-needed-by="unitFloc,userList,paramSearch">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">MB51</div>
+            <div class="hint">Material movements · Posting Date, Order, Material, Movement Type, Quantity. ≥ 12 months.</div>
+            <span class="file">drag .xlsx / .csv here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv" />
+          </label>
+          <label class="drop" data-source="iw39" data-needed-by="unitFloc">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">IW39</div>
+            <div class="hint">Work orders · Order, Sort Field, Basic start date, Description.</div>
+            <span class="file">drag .xlsx / .csv here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv" />
+          </label>
+          <label class="drop" data-source="fleetMaster" data-needed-by="unitFloc">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">Fleet Master</div>
+            <div class="hint">Equipment list · Model number, Sort Field, Unit Type, Manufacturer, FunctLoc.</div>
+            <span class="file">drag .xlsx / .csv here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv" />
+          </label>
+          <label class="drop" data-source="inventoryMaster" data-needed-by="unitFloc,userList,paramSearch">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">Inventory Master</div>
+            <div class="hint">Stock &amp; MRP &amp; classification · Material, Qty OH, Value OH, Material Group, Manufacturer, MRP Ind, MRP Min/Max, Inventory Type.</div>
+            <span class="file">drag .xlsx / .csv here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv" />
+          </label>
+          <!-- APP-FIX-SNAPSHOT-ALIGN — capture the Inventory Master extract date so the SOH back-calc anchors to the snapshot date (and we can warn if it differs from the MB51 cut-off). -->
+          <div class="im-date-row" id="imDateRow">
+            <label for="imDateInput">Inventory Master <b>extract date</b></label>
+            <input type="date" id="imDateInput" />
+            <span class="im-date-note" id="imDateNote">SAP run date of the stock snapshot — should match the MB51 cut-off date so the Stock-on-Hand line lines up.</span>
+          </div>
+          <label class="drop drop-cond" data-source="userList" data-needed-by="userList" data-conditional="userList">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">User list <em style="font-size:10px;color:var(--text-muted);text-transform:none;letter-spacing:.3px;font-style:normal;font-weight:normal;">(optional · materials or work orders)</em></div>
+            <div class="hint">Convenience input for User-list assessment. One <b>material</b> or <b>work order</b> per row — or comma/tab-delimited. File can have a <code>Material</code> column OR an <code>Order</code> column (not both).<br><b>Or skip this and paste directly in Step 4 (Manual) below.</b></div>
+            <span class="file">drag .xlsx / .csv / .txt here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv,.txt" />
+          </label>
+          <div class="hidden">
+            <label class="drop drop-cond" data-source="materialVendor">
+              <span class="drop-flag" aria-hidden="true"></span>
+              <div class="name">Material — Vendor mapping</div>
+              <div class="hint">Required for By Vendor scope. Material → Vendor → Vendor Name.</div>
+              <span class="file">drag .xlsx / .csv here, or click</span>
+              <input type="file" accept=".xlsx,.xls,.csv" />
+            </label>
+          </div>
+          <div class="hidden">
+            <label class="drop drop-cond" data-source="leadTimes">
+              <span class="drop-flag" aria-hidden="true"></span>
+              <div class="name">Lead Times (optional)</div>
+              <div class="hint">Per-material trigger-to-GR + safety stock. Enables leadTimeBased Min/Max.</div>
+              <span class="file">drag .xlsx / .csv here, or click</span>
+              <input type="file" accept=".xlsx,.xls,.csv" />
+            </label>
+          </div>
+          <!-- APP-T-02 (2026-05-16) — PR History: new optional source feeding
+               the Trace bridge. Visible (not .hidden) so the operator can
+               always drop a PR History file when they want Trace to have
+               real data. Required-for-Trace, optional-for-Tune. -->
+          <label class="drop drop-cond" data-source="prHistory">
+            <span class="drop-flag" aria-hidden="true"></span>
+            <div class="name">PR History</div>
+            <div class="hint">Procurement requisition history (SAP PR list with PO). Gives the <b>PR → release → PO chains</b>, cancellations, the creation indicator (B = MRP-created · R = manual) and the <b>Delivery Date</b> (need-by — the plan). Include Purchase order, Purchase Order Date, Release Date, Changed On and Delivery Date.</div>
+            <span class="file">drag .xlsx / .csv here, or click</span>
+            <input type="file" accept=".xlsx,.xls,.csv" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 2 — SCHEMA MAPPING ─── -->
+    <section class="step" id="step2">
+      <div class="step-head">
+        <div class="step-num">02</div>
+        <div class="step-title">Schema mapping</div>
+        <div class="step-status" id="schemaSummary">awaiting parse</div>
+      </div>
+      <div class="step-body">
+        <div class="panel-sub" style="margin-bottom:14px;">Auto-mapped fields are green. Override any unmatched header by picking from the dropdown — the page re-parses with your choice.</div>
+        <div id="schemaRows" class="schema-rows"></div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 3 — DATA QUALITY GATE ─── -->
+    <section class="step" id="step3">
+      <div class="step-head">
+        <div class="step-num">03</div>
+        <div class="step-title">Data quality gate</div>
+        <div class="step-status" id="step3Status">awaiting all 4 required files</div>
+      </div>
+      <div class="step-body">
+        <div id="dqTiles" class="dq-summary"></div>
+        <ul id="dqList" class="dq-list"></ul>
+      </div>
+    </section>
+
+    <!-- ─── STEP 4 — SCOPE SELECTOR ─── -->
+    <section class="step disabled" id="step4">
+      <div class="step-head">
+        <div class="step-num">04</div>
+        <div class="step-title">Scope selection</div>
+        <div class="step-status">awaiting DQ pass</div>
+      </div>
+      <div class="step-body">
+        <div class="tabs scope-tabs">
+          <button class="tab active" data-mode="fleet">Fleet</button>
+          <button class="tab"        data-mode="manual">Manual</button>
+          <button class="tab"        data-mode="byClassification">By Classification</button>
+          <button class="tab"        data-mode="byVendor">By Vendor</button>
+          <button class="tab"        data-mode="allMaterials">All materials</button>
+        </div>
+
+        <!-- PERF-INT-TYPE — performance scope: no picker, the files decide -->
+        <div class="scope-pane hidden" data-mode="allMaterials">
+          <h5>Every material in the uploaded files</h5>
+          <div class="panel-sub" style="margin-bottom:8px;">No selection needed — a performance run reviews every material with an MB51 movement or a PR line. Narrow it down on the Workbench with the filters (manufacturer, MRP type, value, lead time, stock).</div>
+          <div class="scope-preview">awaiting data</div>
+        </div>
+
+        <!-- Fleet pane -->
+        <div class="scope-pane" data-mode="fleet">
+          <h5>Pick fleet models</h5>
+          <div id="fleetModels" class="chip-row"></div>
+          <div class="scope-preview">no models selected</div>
+        </div>
+
+        <!-- Manual pane — APP-E22: accepts materials OR work orders with auto-detect. -->
+        <div class="scope-pane hidden" data-mode="manual">
+          <h5>Paste material numbers <em style="font-style:normal;color:var(--text-muted);font-weight:normal;">or</em> work-order numbers (one per line; commas, tabs, semicolons also OK)</h5>
+          <div class="ml-typebar" id="manualTypeBar" role="tablist" aria-label="List type">
+            <span class="ml-typebar-lbl">List type:</span>
+            <button type="button" class="ml-type active" data-type="auto"       title="Detect from paste / file">Auto</button>
+            <button type="button" class="ml-type"        data-type="materials"  title="Treat all rows as material numbers">Materials</button>
+            <button type="button" class="ml-type"        data-type="workOrders" title="Treat all rows as maintenance / work-order numbers">Work Orders</button>
+          </div>
+          <div class="panel-sub" style="margin-bottom:8px;font-size:11.5px;color:var(--text-muted);">
+            For <b>User-list</b> assessments: paste materials <em>or</em> work orders directly here — no file upload needed.
+            If you also dropped a user-list file in Step 1, it pre-fills this box; you can edit / append freely.
+            Default is <b>Auto</b> — the tool guesses based on what matches Inventory Master, MB51, and IW39 (if loaded).
+          </div>
+          <textarea id="manualPaste" placeholder="10001234&#10;10005678&#10;10009999"></textarea>
+          <div id="manualDetectChip" class="ml-detect-chip hidden"></div>
+          <div class="ml-xref-bar">
+            <button type="button" id="manualXref" class="ghost ml-xref-btn" title="Check each pasted material against the loaded MB51, Inventory Master, and PR History files">Check cross-reference</button>
+            <span class="ml-xref-hint">Confirms your pasted materials have matching data in the loaded files.</span>
+          </div>
+          <div id="manualXrefResult" class="ml-xref-result hidden"></div>
+          <div class="scope-preview">no items provided</div>
+        </div>
+
+        <!-- By Classification pane -->
+        <div class="scope-pane hidden" data-mode="byClassification">
+          <div class="classif-grid">
+            <div>
+              <h5>Inventory type (multi)</h5>
+              <div id="classifInvTypes" class="chip-row"></div>
+            </div>
+            <div>
+              <h5>MRP classifier (multi)</h5>
+              <div id="classifMrp" class="chip-row"></div>
+            </div>
+          </div>
+          <div>
+            <h5 style="margin-top:6px;">Movement amount (net consumption over MB51 window)</h5>
+            <div class="row" style="gap:10px;">
+              <div class="row-input" style="flex:1;">
+                <label class="label" style="min-width:60px;">min</label>
+                <input id="mvmtMin" type="number" placeholder="—" />
+              </div>
+              <div class="row-input" style="flex:1;">
+                <label class="label" style="min-width:60px;">max</label>
+                <input id="mvmtMax" type="number" placeholder="—" />
+              </div>
+            </div>
+          </div>
+          <div class="scope-preview">no filters set</div>
+        </div>
+
+        <!-- By Vendor pane -->
+        <div class="scope-pane hidden" data-mode="byVendor">
+          <h5>Pick vendors / suppliers</h5>
+          <div id="vendorList" class="chip-row"></div>
+          <div class="scope-preview">no vendors selected</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 4b — PARAMETER SEARCH FILTER PANEL (Parameter Search only) ─── -->
+    <section class="step hidden" id="stepParamSearch">
+      <div class="step-head">
+        <div class="step-num">04b</div>
+        <div class="step-title">Parameter search · filter the material universe</div>
+        <div class="step-status" id="paramSearchStatus">no filters set</div>
+      </div>
+      <div class="step-body">
+        <div class="panel-sub" style="margin-bottom:14px;">
+          Drag a dimension from the bar onto the canvas to add a filter. Multiple filters AND together —
+          a material must satisfy every active filter to qualify. Use <b>Simple</b> for value-pick / range
+          presets, or <b>Advanced</b> for custom min/max, regex, or comma-separated lists.
+        </div>
+
+        <div class="ps-dim-bar" id="psDimBar"></div>
+
+        <div class="ps-canvas" id="psCanvas">
+          <div class="ps-canvas-empty">Drag a dimension here to start filtering.</div>
+        </div>
+
+        <div class="ps-preview">
+          <div class="ps-stat">
+            <span class="lab">Matching materials</span>
+            <span class="v" id="psMatCount">—</span>
+          </div>
+          <div class="ps-stat">
+            <span class="lab">Total net consumption</span>
+            <span class="v" id="psNetConsumption">—</span>
+          </div>
+          <div class="ps-stat">
+            <span class="lab">Total on-hand value (CAD)</span>
+            <span class="v" id="psOnHandValue">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 5 — PARAMETERS ─── -->
+    <section class="step" id="step5">
+      <div class="step-head">
+        <div class="step-num">05</div>
+        <div class="step-title">Parameters · per-run override</div>
+        <div class="step-status">read from Settings</div>
+      </div>
+      <div class="step-body">
+        <div class="panel-sub" style="margin-bottom:14px;">Defaults come from <a href="../settings/settings.html">Settings</a>. Edit here for this run only — changes don't mutate saved defaults. Cells highlighted amber are overridden.</div>
+        <div id="paramsGrid" class="param-grid"></div>
+        <div id="paramsAdvanced" class="params-advanced"></div>
+        <div class="params-actions">
+          <button id="paramsReset" class="ghost">↺ Reset to saved defaults</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 6 — FINAL SCOPE SUMMARY ─── -->
+    <section class="step" id="stepScopeSummary">
+      <div class="step-head">
+        <div class="step-num">06</div>
+        <div class="step-title">Final scope · what will be analyzed</div>
+        <div class="step-status" id="scopeSummaryStatus">awaiting data</div>
+      </div>
+      <div class="step-body">
+        <div class="panel-sub" style="margin-bottom:14px;">
+          The numbers below show exactly what the analysis engine will see — bucketed by your scope choice,
+          with the parameter threshold applied. If the totals don't match what you expect, go back to Step 4 (scope)
+          or Step 1 (uploads) and reconcile <em>before</em> running the analysis.
+        </div>
+        <div id="scopeSummaryBody" class="scope-summary-wrap">
+          <div class="scope-summary-empty">awaiting required uploads</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STEP 7 — REVIEW & EXPORT ─── -->
+    <section class="step" id="step6">
+      <div class="step-head">
+        <div class="step-num">07</div>
+        <div class="step-title">Review &amp; export</div>
+        <div class="step-status mono" id="jsonSize">— B</div>
+      </div>
+      <div class="step-body">
+        <pre id="jsonPreview" class="preview-box">{ }</pre>
+        <div class="actions-help">
+          <div class="ah-cell">
+            <span class="ah-name">Save to local storage</span>
+            <span class="ah-desc">Persists this JSON inside your browser (localStorage / IndexedDB, under this app's own <code>mrpPerf</code> namespace — separate from Calibre Tune). Appears in <b>Recent intakes</b> on the dashboard. Never leaves your machine.</span>
+          </div>
+          <div class="ah-cell">
+            <span class="ah-name">⤓ Download .json</span>
+            <span class="ah-desc">Saves the JSON to a real file on disk — for backup, sharing with a colleague, moving to another machine, or version-controlling the intake.</span>
+          </div>
+          <div class="ah-cell">
+            <span class="ah-name">⤒ Upload .json</span>
+            <span class="ah-desc">Reverse of Download — loads a previously-saved <code>.json</code> back into this page. A Calibre Tune dataset download also loads (read as a performance run over the materials it carries).</span>
+          </div>
+          <div class="ah-cell">
+            <span class="ah-name">Open in Workbench →</span>
+            <span class="ah-desc">Writes the JSON to this app's <code>intake.current</code> slot and opens the performance Workbench. <b>Save first</b> if you also want it in Recent intakes.</span>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button id="btnSaveLocal" class="primary">Save to local storage</button>
+          <button id="btnDownload">⤓ Download .json</button>
+          <button id="btnUpload">⤒ Upload .json</button>
+          <input type="file" id="uploadJsonInput" accept=".json" class="hidden" />
+          <label id="trimScopeOpt" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-sec,#9fb3c8);cursor:pointer;white-space:nowrap" title="Keep only the materials that moved (MB51) or were requisitioned (PR History). The rest of the Inventory Master catalogue — materials with no activity in the window — is dropped from the saved / downloaded file. Workbench results are identical.">
+            <input type="checkbox" id="chkTrimScope" checked /> Trim to materials in use
+          </label>
+          <span class="spacer"></span>
+          <button id="btnOpenAnalysis" class="ghost">Open in Workbench →</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ─── Libraries (CDN) ─── -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<!-- ─── App scripts ─── -->
+<script src="../shared/canonical-schema.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="../shared/locale.js"></script>
+<script src="../shared/parsers.js"></script>
+<script src="../shared/config.js"></script>
+<script src="../shared/inventory-back-calc.js"></script>
+<script src="../shared/pipeline.js"></script>
+<!-- PERF — analyst-marks.js deliberately NOT loaded: it writes Tune's
+     tune.analyst.* keys, and this app shares Tune's browser origin. -->
+<script src="intake.js"></script>
+
+</body>
+</html>

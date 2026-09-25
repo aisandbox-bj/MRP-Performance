@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · v0.1.0-dev · 2026-09-25
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     This file is the canonical changelog. Styling borrowed from the Calibre
+     Tune Record of Change so the suite's RoCs read the same.
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Record of Change</title>
+<meta name="app-version" content="0.1.0-dev" />
+<meta name="app-released" content="2026-09-25" />
+<link rel="stylesheet" href="shared/brand-tokens.css" />
+<link rel="stylesheet" href="shared/perf.css" />
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   Record of Change · brand-pack-aligned restyle (v2.1.3-dev)
+   Extends brand-tokens.css. Uses the standard panel grammar (deep-navy
+   background, soft cyan border, radial glow), pill-style status tags, and
+   mono meta blocks for files-touched + rollback notes.
+═══════════════════════════════════════════════════════════════════════ */
+
+main.shell { padding-top: 28px; }
+
+/* ─── Hero — panel grammar (radial glow + eyebrow + title + sub) ────────── */
+.roc-head {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 30px 34px;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.roc-head::before {
+  content: "";
+  position: absolute;
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  background: rgba(31,206,216,0.10);
+  filter: blur(85px);
+  top: -110px; right: -110px;
+  pointer-events: none;
+  z-index: 0;
+}
+.roc-head > * { position: relative; z-index: 1; }
+.roc-head .pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.roc-head h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: 3px;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--text-pri);
+  margin-bottom: 12px;
+}
+.roc-head .sub {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 780px;
+}
+.roc-head .sub em { color: var(--text-sec); font-style: italic; }
+.roc-head .sub code {
+  background: rgba(31,206,216,0.08);
+  border: 1px solid rgba(31,206,216,0.16);
+  color: var(--accent);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-radius: var(--r-sm);
+}
+
+/* ─── Rollback how-to panel — warn-amber accent ────────────────────────── */
+.rollback-panel {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--status-warn);
+  border-radius: var(--r-md);
+  padding: 20px 24px;
+  margin-bottom: 28px;
+}
+.rollback-panel .lab {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--status-warn);
+  margin-bottom: 6px;
+}
+.rollback-panel h3 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  color: var(--text-pri);
+  margin-bottom: 14px;
+}
+.rollback-panel p {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-sec);
+  margin-bottom: 10px;
+}
+.rollback-panel p:last-child { margin-bottom: 0; }
+.rollback-panel code {
+  background: rgba(31,206,216,0.08);
+  border: 1px solid rgba(31,206,216,0.16);
+  color: var(--accent);
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  border-radius: var(--r-sm);
+}
+.rollback-panel pre {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-sec);
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+/* ─── Entries list ─────────────────────────────────────────────────────── */
+.roc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Each entry — panel grammar with status stripe + glow ─────────────── */
+.roc-entry {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 24px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.roc-entry::before {
+  content: "";
+  position: absolute;
+  width: 240px; height: 240px;
+  border-radius: 50%;
+  background: rgba(31,206,216,0.06);
+  filter: blur(70px);
+  top: -90px; right: -90px;
+  pointer-events: none;
+  z-index: 0;
+}
+.roc-entry > * { position: relative; z-index: 1; }
+.roc-entry.dev     { border-left: 3px solid var(--status-warn); }
+.roc-entry.release { border-left: 3px solid var(--accent-green); }
+
+/* Header row — version chip + pill + date */
+.roc-entry .head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.roc-entry .ver {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 2px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.roc-entry.dev     .ver { color: var(--status-warn); }
+.roc-entry.release .ver { color: var(--accent-green); }
+.roc-entry .date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Status tag — pill style (matches .pill from brand-tokens.css) */
+.roc-entry .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--text-sec);
+}
+.roc-entry .tag::before {
+  content: "";
+  width: 7px; height: 7px;
+  background: var(--text-muted);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.roc-entry .tag.dev {
+  color: var(--status-warn);
+  border-color: rgba(251,191,36,0.30);
+  background: rgba(251,191,36,0.06);
+}
+.roc-entry .tag.dev::before { background: var(--status-warn); }
+.roc-entry .tag.released {
+  color: var(--accent-green);
+  border-color: rgba(90,182,157,0.35);
+  background: rgba(90,182,157,0.06);
+}
+.roc-entry .tag.released::before { background: var(--accent-green); }
+
+/* Section headings inside each entry */
+.roc-entry h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: 0.5px;
+  color: var(--text-pri);
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(31,206,216,0.12);
+}
+.roc-entry h4:first-of-type { margin-top: 6px; }
+
+/* Bulleted lists with cyan dash markers */
+.roc-entry ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+}
+.roc-entry li {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-sec);
+  padding: 5px 0 5px 20px;
+  position: relative;
+}
+.roc-entry li::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 15px;
+  width: 10px; height: 1px;
+  background: var(--accent);
+}
+.roc-entry ul ul {
+  margin-top: 5px;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-soft);
+}
+.roc-entry ul ul li { padding-left: 14px; font-size: 12.5px; }
+.roc-entry ul ul li::before { width: 7px; top: 14px; }
+
+/* Inline emphasis */
+.roc-entry b, .roc-entry strong { color: var(--text-pri); font-weight: 600; }
+.roc-entry em { color: var(--accent-glow); font-style: italic; }
+
+/* Code spans inside entry body */
+.roc-entry code {
+  background: rgba(31,206,216,0.08);
+  border: 1px solid rgba(31,206,216,0.16);
+  color: var(--accent);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  border-radius: var(--r-sm);
+}
+.roc-entry a { color: var(--accent); }
+.roc-entry a:hover { color: var(--accent-glow); text-decoration: underline; }
+
+/* Meta block — files touched / boundary notes / rollback */
+.roc-entry .commit {
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  letter-spacing: 0.2px;
+  color: var(--text-muted);
+}
+.roc-entry .commit.rollback { border-left-color: var(--status-warn); }
+.roc-entry .commit b, .roc-entry .commit strong { color: var(--text-pri); }
+.roc-entry .commit code {
+  background: rgba(0,0,0,0.35);
+  border-color: transparent;
+  color: var(--accent);
+  padding: 1px 6px;
+  font-size: 11.5px;
+}
+.roc-entry .commit a { color: var(--accent); text-decoration: none; }
+.roc-entry .commit a:hover { color: var(--accent-glow); text-decoration: underline; }
+</style>
+</head>
+<body>
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub active" href="record-of-change.html">v0.1.0-dev · RoC</a>
+  </div>
+  <div class="links">
+    <a href="index.html">Dashboard</a>
+    <a href="intake/intake.html">Intake</a>
+    <a href="workbench/workbench.html">Workbench</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="record-of-change.html" class="active">RoC</a>
+    <a href="user-manual.html">Manual</a>
+  </div>
+</nav>
+
+<main class="shell">
+
+  <section class="roc-head">
+    <div class="pre">Version management · rollback-safe</div>
+    <h1>Record of Change</h1>
+    <div class="sub">
+      Every push to <code>aisandbox-bj/MRP-Performance</code> is listed here: what changed, what it
+      touched, and how to get back to the state before it. Before each push a
+      <code>backup/pre-&lt;chunk&gt;</code> branch and a <code>checkpoint/pre-&lt;chunk&gt;</code> tag are
+      cut at the current <code>origin/main</code>, and a local snapshot is kept in
+      <code>_rollback/&lt;CHUNK&gt;-pre/</code> beside the working folder. Entries marked <em>dev</em>
+      are built and browser-verified but still waiting for the operator's off-repo validation.
+    </div>
+  </section>
+
+  <section class="rollback-panel">
+    <div class="lab">How to roll back</div>
+    <h3>Back to the state before any push</h3>
+    <p>
+      The working folder is <strong>not</strong> a git repository. Rollback always happens through a
+      clone — never by running <code>git init</code> in the working folder.
+    </p>
+<pre>
+# Look at the state before a given push (read-only)
+git clone https://github.com/aisandbox-bj/MRP-Performance.git peek
+git -C peek checkout checkpoint/pre-v0.1.0     # or any checkpoint/pre-&lt;chunk&gt; tag
+
+# Undo one pushed commit without rewriting history (preferred)
+git -C peek checkout main
+git -C peek revert &lt;commit&gt;
+git -C peek push origin main
+
+# Hard reset main to a checkpoint (history rewrite — only on an explicit decision)
+git -C peek reset --hard checkpoint/pre-v0.1.0
+git -C peek push --force-with-lease origin main
+</pre>
+    <p style="margin-top:6px;">
+      Borrowed Calibre Tune files are also kept exactly as copied (with their SHA-256 hashes) in
+      <code>_rollback/BORROWED-as-copied-from-tune-2896842/</code> next to the working folder, and listed in
+      <code>PROVENANCE.md</code> in the repo.
+    </p>
+  </section>
+
+  <div class="roc-list">
+
+    <!-- v0.1.0-dev - first build - 2026-09-25 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.1.0</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.1.0-dev — <b>First build: a supply-chain performance workbench across every material</b> — <b>browser-verified; pending operator off-repo validation</b></h4>
+      <ul>
+        <li><b>What it is.</b> A new Calibre app, separate from Calibre Tune and Trace. Where Tune and Trace start from one material, this starts from the process: every PR line, every receipt, every day of stock, for every material in the files. It answers how MRP responds, how long each leg of the chain takes, whether V1 parts are replenished to Max, and where the process deviates from plan — as distributions with both tails drill-able, never as a bare average.</li>
+        <li><b>Intake (PERF-INT).</b> Calibre Tune's intake, copied and adapted. One assessment type — <i>Supply-chain performance</i> — needing MB51, the Inventory Master and PR History; the files decide the scope (every material with a movement or a PR line). New data-quality checks for PR History: need-by dates present, PR lines with a PO, POs that find a 107 / 109 receipt in MB51, blank sub-header rows, creation indicator present. The PR <b>Delivery Date</b> (need-by) is now read — it arrives as <code>20250608</code>, which Tune's date reader silently turned into a blank. Three extra MB51 columns are read when present (value in local currency, entry date, storage location). A Calibre Tune dataset download also loads, and says so.</li>
+        <li><b>Engine (PERF-ENGINE).</b> Follows every PR line PR → release → PO → 3PL (first 107) → site (first 109) → first use (first 261) with <b>signed</b> durations: an end dated before its start is kept and flagged “out of sequence”, not rounded to zero. Rebuilds each material's site stock for every day of the MB51 window from the Inventory Master snapshot, using the same movement-type signs as Tune. <b>Parity check built in:</b> on the June 2026 assessment all 2,351 chains match Trace's chain engine exactly and all 275 checked materials match Tune's stock back-calc on every day. Speed: that dataset builds in ~0.2 s; a 450,000-line MB51 / 70,000 PR-line / 9,930-material synthetic set in ~1.8 s.</li>
+        <li><b>Views (PERF-TRIGGER · PERF-LEGS · PERF-STOCK).</b> Overview · Trigger → PR response · Exposure &amp; stockouts · MRP cadence &amp; quiet stretches · PR outcomes (real cancellations vs MRP churn, cancellation lag, open-PR ageing) · Internal (PR → PO, approval, buyer) · Supplier (by manufacturer) · 3PL (+ what's sitting at the 3PL) · End to end · Against plan (+ planned vs actual, process paths) · Order sizing (V1 order-to-Max, stock after receipt, reorder frequency) · Over / under (stock at receipt vs trigger line, $ over Max, shelf time) · Data checks &amp; assumptions. Each distribution view: stat strip (closed, still open, out of sequence, P10 / median / P90 with “≥” when still-open items make it a lower bound), histogram, per-month boxes with % closed (months under 90% closed are provisional), a breakdown table and a drill table (bins, fast tail, slow tail, still open, out of sequence; CSV export).</li>
+        <li><b>Material segments (PERF-SEG).</b> Drop-in tiles, dragged or clicked from a palette, ANDed together: movement, consumption events, consumption value, unit cost, stock value, stock on hand, material lead time, PR lines (each by quartile with the cut points shown, top / bottom %, or a range); manufacturer, MRP type, material group, purchasing group, stock status (pick values, include or exclude); material text; PR trigger (MRP / manual). Plus a time window (whole window, last 24 / 12 / 6 / 3 months, or custom months). Breakdown rows add themselves to the segment on click.</li>
+        <li><b>KPI targets.</b> An empty target slot on every leg (⚙ Settings &amp; targets). Once a target is entered the histogram and monthly boxes draw it and the view shows the share within target — left blank until the baseline is clear (operator decision).</li>
+        <li><b>Definitions that are decisions.</b> 107 = arrived at the 3PL, 109 = received at site. Trigger line = Min (V1) or SS (PD). Cover = an open PO or goods at the 3PL; a PR alone is not cover. Cancelled = deletion flag + status N; MRP churn = MRP-created, no PO, cancelled within 2 days (Changed On as the cancel date). Blank creation indicator = unknown, not MRP. Manufacturer stands in for vendor. Min / Max / SS are today's values. POs open more than 365 days with no receipt are “stale”, not cover. All listed on the Data checks view.</li>
+        <li><b>Found while building — PD without safety stock.</b> For PD parts with no SS, MRP raises a PR for demand (a reservation), not for low stock, and reservations aren't in these files. A first version counted every PD zero-stock day as “no PR yet”. Those events are now kept out of trigger response and trigger debt, named on the view with their own list, and still counted in stockouts. Same for V1 parts with Min 0.</li>
+        <li><b>Storage.</b> Tune and this app are served from the same site (aisandbox-bj.github.io), and a browser keeps one storage per site. This app stores everything under its own <code>mrpPerf</code> namespace, never loads Tune's analyst-marks module and never writes Tune's keys; “Clear session data” only removes this app's data.</li>
+      </ul>
+      <div class="commit">
+        <b>Files.</b> New: <code>index.html</code> · <code>workbench/</code> · <code>shared/perf-engine.js</code> · <code>shared/perf-charts.js</code> · <code>shared/perf.css</code> · <code>roadmap.html</code> · <code>user-manual.html</code> · <code>record-of-change.html</code> · <code>README.md</code> · <code>HANDOVER.md</code> · <code>Backlog.md</code> · <code>PROVENANCE.md</code> · <code>.gitignore</code>. Borrowed from Tune (changes tagged <code>PERF-*</code>): <code>intake/</code>, <code>shared/canonical-schema.js</code>, <code>parsers.js</code>, <code>storage.js</code>, <code>pipeline.js</code>; verbatim: <code>brand-tokens.css</code>, <code>locale.js</code>, <code>config.js</code>, <code>inventory-back-calc.js</code>, <code>trace-phase.js</code>. <code>SCHEMA_VERSION</code> unchanged at 1.0.0 (additive fields only).
+      </div>
+      <div class="commit rollback">
+        <b>Rollback.</b> Remote <code>backup/pre-v0.1.0</code> branch + <code>checkpoint/pre-v0.1.0</code> tag, both at the genesis commit (<code>checkpoint/genesis</code>). <code>git revert</code> of the v0.1.0-dev commit returns the repo to genesis.
+      </div>
+      <div class="commit">
+        <b>Open.</b> (1) <b>107 semantics</b> — Tune's stock-rebuild module records an earlier site reading (2026-05-16): “101 = at 3PL, 107 = shipped from 3PL toward site”. In the test files 101 appears only on stock-transfer POs. If that reading is right, the “3PL” leg is transit only and 3PL dwell sits inside the supplier leg. Needs operator confirmation. (2) Trace takes the <b>first</b> 107 / 109 date per PO; the Trace skill spec says quantity-weighted for split deliveries — kept “first” here for parity. (3) Not yet run on a real 150–500k-line extract.
+      </div>
+    </article>
+
+    <!-- genesis - 2026-09-25 -->
+    <article class="roc-entry">
+      <div class="head">
+        <span class="ver">genesis</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag">base</span>
+      </div>
+      <h4>Genesis — empty repository initialised</h4>
+      <ul>
+        <li>README stub and <code>.gitignore</code> (keeps data files — .xlsx / .csv / .json — out of this public repository). Tagged <code>checkpoint/genesis</code> as the first rollback anchor.</li>
+      </ul>
+    </article>
+
+  </div>
+</main>
+
+</body>
+</html>

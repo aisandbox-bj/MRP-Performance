@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · v0.1.0-dev (dev tip)
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     RoC  : ../record-of-change.html     (what changed + how to roll back)
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Workbench</title>
+<meta name="app-version" content="0.1.0-dev" />
+<meta name="app-released" content="2026-09-25" />
+<link rel="stylesheet" href="../shared/brand-tokens.css" />
+<link rel="stylesheet" href="../shared/perf.css" />
+<link rel="stylesheet" href="workbench.css" />
+</head>
+<body>
+
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub" href="../record-of-change.html" title="Record of Change — version history, what changed, rollback steps">v0.1.0-dev · Workbench</a>
+  </div>
+  <div class="links">
+    <a href="../index.html">Dashboard</a>
+    <a href="../intake/intake.html">Intake</a>
+    <a href="workbench.html" class="active">Workbench</a>
+    <a href="../roadmap.html">Roadmap</a>
+    <a href="../record-of-change.html">RoC</a>
+    <a href="../user-manual.html">Manual</a>
+  </div>
+</nav>
+
+<main class="wb-shell">
+
+  <!-- dataset header -->
+  <header class="wb-head" id="wbHead">
+    <div class="wb-title">
+      <div class="panel-eyebrow">Supply-chain performance review</div>
+      <h1 id="dsName">No dataset loaded</h1>
+      <div class="wb-meta" id="dsMeta"></div>
+    </div>
+    <div class="wb-head-actions">
+      <button id="btnLoadJson" class="btn-sm" title="Open a saved dataset (.json) — from this app's Intake or a Calibre Tune download">⤒ Open .json</button>
+      <input type="file" id="loadJsonInput" accept=".json" class="hidden" />
+      <button id="btnSettings" class="btn-sm" title="Engine settings and KPI targets">⚙ Settings &amp; targets</button>
+    </div>
+  </header>
+
+  <div class="wb-progress hidden" id="wbProgress"><div class="bar" id="wbProgBar"></div><span id="wbProgMsg">Building…</span></div>
+
+  <!-- empty state -->
+  <section class="wb-empty hidden" id="wbEmpty">
+    <div class="card">
+      <div class="card-t">No dataset in this app yet</div>
+      <p class="card-s" style="margin:8px 0 14px;">Build one on the <a href="../intake/intake.html">Intake</a> page (MB51 + Inventory Master + PR History), or open a saved <code>.json</code> — including a dataset downloaded from Calibre Tune.</p>
+      <div class="row"><a href="../intake/intake.html"><button class="primary">New intake →</button></a><button id="btnLoadJson2">⤒ Open .json</button></div>
+    </div>
+  </section>
+
+  <!-- filters: ONE row above everything they scope -->
+  <section class="wb-filters hidden" id="wbFilters" aria-label="Filters"></section>
+
+  <div class="wb-grid hidden" id="wbGrid">
+    <nav class="wb-rail" id="wbRail" aria-label="Views"></nav>
+    <section class="wb-view" id="wbView" aria-live="polite"></section>
+  </div>
+</main>
+
+<!-- settings & KPI targets -->
+<div class="wb-modal hidden" id="setModal" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <div class="wb-modal-bg" data-close="1"></div>
+  <div class="wb-modal-card">
+    <div class="wb-modal-h"><h3 id="setTitle">Settings &amp; KPI targets</h3><button class="ghost" data-close="1" aria-label="Close">✕</button></div>
+    <div class="wb-modal-b" id="setBody"></div>
+    <div class="wb-modal-f"><button id="setReset" class="ghost">↺ Factory settings</button><span class="spacer"></span><button data-close="1">Cancel</button><button id="setSave" class="primary">Apply</button></div>
+  </div>
+</div>
+
+<script src="../shared/canonical-schema.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="../shared/locale.js"></script>
+<script src="../shared/inventory-back-calc.js"></script>
+<script src="../shared/trace-phase.js"></script>
+<script src="../shared/perf-engine.js"></script>
+<script src="../shared/perf-charts.js"></script>
+<script src="workbench.js"></script>
+</body>
+</html>
