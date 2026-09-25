@@ -1,0 +1,17 @@
+# PUBLIC repository — code only. Never commit SAP extracts or datasets.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.tsv
+*.json
+*.zip
+# local working folders that live beside the app, never inside the repo
+_rollback/
+_dev/
+review/
+sub-versions/
+# OS / editor noise
+Thumbs.db
+.DS_Store
+*.tmp
