@@ -100,17 +100,24 @@
 .card-actions select{ width:auto; padding:4px 8px; font-size:12px; }
 
 /* PERF-FILTER-COLLAPSE — Window + Segment panel folds to one line */
-.wb-filters{ padding:8px 12px; }
-.wb-filters.open{ padding:10px 14px 12px; }
-.seg-bar{ display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; }
+.wb-filters{ padding:8px 12px; position:relative; z-index:70; }
+/* PERF-FILTER-OVERLAY — never change the card's in-flow size when it opens */
+.seg-bar{ display:flex; align-items:center; gap:8px 10px; flex-wrap:nowrap; height:30px; }
 .seg-toggle{ white-space:nowrap; }
 .seg-n{ color:var(--accent); margin-left:2px; }
-.seg-chips{ display:flex; flex-wrap:wrap; gap:5px; flex:1; min-width:0; }
-.schip{ display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--text-sec); padding:2px 8px; border:1px solid var(--border); background:rgba(255,255,255,.02); cursor:pointer; max-width:420px; }
+.seg-chips{ display:flex; flex-wrap:nowrap; gap:5px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent); mask-image:linear-gradient(90deg,#000 92%,transparent); }
+.seg-chips::-webkit-scrollbar{ display:none; }
+.schip{ display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--text-sec); padding:2px 8px; border:1px solid var(--border); background:rgba(255,255,255,.02); cursor:pointer; max-width:320px; flex-shrink:0; white-space:nowrap; }
 .schip b{ color:var(--text-pri); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .schip.set{ border-color:var(--border-strong); background:rgba(31,206,216,.05); }
 .schip.muted{ color:var(--text-muted); cursor:default; }
 .schip button{ padding:0 3px; border:none; font-size:11px; color:var(--text-muted); line-height:1; }
 .schip button:hover{ color:var(--status-crit); background:none; }
 .seg-bar .seg-count{ margin-left:auto; white-space:nowrap; }
-.seg-body{ margin-top:10px; padding-top:10px; border-top:1px solid var(--border-soft); }
+.seg-body{
+  position:absolute; left:-1px; right:-1px; top:calc(100% + 6px);
+  background:var(--bg-panel); border:1px solid var(--border-strong); border-radius:var(--r-md);
+  padding:12px 14px 10px; box-shadow:0 14px 34px rgba(0,0,0,.55);
+  max-height:min(72vh, 680px); overflow:auto;
+}
+.seg-foot{ display:flex; justify-content:flex-end; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-soft); }

@@ -333,8 +333,10 @@
         ${DIMS.map(d => `<button class="seg-dim" draggable="true" data-dim="${d.key}" title="${esc(d.hint)}">+ ${esc(d.label)}</button>`).join('')}
       </div>
       <div class="seg-tiles" id="segTiles"></div>
+      <div class="seg-foot"><span class="muted-note" style="margin:0 auto 0 0">Opens over the page — nothing underneath moves. Click outside or press Esc to close.</span><button class="btn-sm" id="segDone">Done</button></div>
       </div>`;
     $('#segToggle').addEventListener('click', () => { state.filtersOpen = !state.filtersOpen; saveUi(); renderSegments(); });
+    $('#segDone').addEventListener('click', closeFilters);
     host.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
       state.period.preset = b.dataset.preset;
       if (b.dataset.preset === 'custom' && !state.period.from) {
@@ -355,6 +357,16 @@
     tilesHost.addEventListener('drop', (e) => { e.preventDefault(); tilesHost.classList.remove('drop'); const k = e.dataTransfer.getData('text/plain'); if (DIM[k]) addTile(k); });
     renderTiles();
   }
+  /* PERF-FILTER-OVERLAY — the filter card floats over the page; close it on
+     Done, Esc, or a click anywhere outside it. */
+  function closeFilters(){ if (!state.filtersOpen) return; state.filtersOpen = false; saveUi(); renderSegments(); }
+  document.addEventListener('pointerdown', (e) => {
+    if (!state.filtersOpen) return;
+    const host = $('#wbFilters');
+    if (host && !host.contains(e.target) && !e.target.closest('.pc-tip')) closeFilters();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.filtersOpen && $('#setModal').classList.contains('hidden')) closeFilters(); });
+
   function addTile(dimKey){
     state.tiles.forEach(t => t.open = false);
     state.tiles.push(newTile(dimKey));

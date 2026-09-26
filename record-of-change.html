@@ -381,6 +381,21 @@ git -C peek push --force-with-lease origin main
 
   <div class="roc-list">
 
+    <!-- v0.2.0-dev follow-up - PERF-FILTER-OVERLAY - 2026-09-25 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.2.0</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.2.0-dev follow-up — <b>Filter card opens over the page — nothing underneath moves</b> (PERF-FILTER-OVERLAY) — <b>browser-verified; pending operator validation</b></h4>
+      <ul>
+        <li><b>Operator ask:</b> the page shouldn't bounce when filters are opened or added. The filter card now opens as an <b>overlay</b> floating over the view (scrolls inside itself if long), and the one-line summary bar keeps a <b>fixed height</b> — extra chips scroll sideways instead of wrapping to a second line. Opening, adding, editing or removing a filter no longer moves the charts or text below. Close with <b>Done</b>, <b>Esc</b>, or a click outside the card.</li>
+        <li>Presentation only — no change to filtering or numbers.</li>
+      </ul>
+      <div class="commit rollback"><b>Rollback.</b> Remote <code>backup/pre-PERF-FILTER-OVERLAY</code> + <code>checkpoint/pre-PERF-FILTER-OVERLAY</code>; local <code>_rollback/PERF-FILTER-OVERLAY-pre/</code>.</div>
+    </article>
+
     <!-- v0.2.0-dev follow-up - PERF-FILTER-COLLAPSE - 2026-09-25 -->
     <article class="roc-entry dev">
       <div class="head">
