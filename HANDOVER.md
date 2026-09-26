@@ -1,8 +1,8 @@
 # HANDOVER — Calibre MRP Performance
 
 ## Where things are
-- **Repo:** `aisandbox-bj/MRP-Performance` (public). Repo root mirrors the local dev folder `4 - Build Output/MRP Performance/v0.1.0-dev/` in the Calibre project folder.
-- **Current version:** `v0.1.0-dev`. `SCHEMA_VERSION` 1.0.0 (same canonical JSON as Calibre Tune — additive fields only).
+- **Repo:** `aisandbox-bj/MRP-Performance` (public). Repo root mirrors the local dev folder `4 - Build Output/MRP Performance/v0.2.0-dev/` in the Calibre project folder (`v0.1.0-dev/` beside it is frozen as the rollback copy).
+- **Current version:** `v0.2.0-dev`. `SCHEMA_VERSION` 1.0.0 (same canonical JSON as Calibre Tune — additive fields only).
 - **The newest `record-of-change.html` entry** is the source of truth for what's on `origin/main` — don't hard-pin a SHA in docs.
 
 ## Push protocol (DO NOT DEVIATE)

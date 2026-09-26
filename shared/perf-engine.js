@@ -125,7 +125,16 @@
   /* ═════════════════════════════════════════════════════════════════════════
      build(json, settings, onProgress) → Promise<model>
   ═════════════════════════════════════════════════════════════════════════ */
-  async function build(json, settingsIn, onProgress){
+  /* opts (PERF-DEEPDIVE, v0.2.0-dev):
+       only        Set<material> — analyse just these materials. The window and
+                   "as of" date are still taken from the WHOLE dataset, so a
+                   single-material build gives exactly the same numbers as the
+                   Workbench's full build.
+       keepSeries  keep each analysed material's day arrays in model.series
+                   (stock, deltas, cover, open PRs, on-order qty) — for the
+                   deep-dive graph. Only use together with `only`. */
+  async function build(json, settingsIn, onProgress, opts){
+    opts = opts || {};
     const S = Object.assign({}, DEFAULT_SETTINGS, settingsIn || {});
     const BC = global.InventoryBackCalc;
     if (!BC) throw new Error('InventoryBackCalc not loaded');
@@ -175,7 +184,7 @@
     const N  = Math.max(1, W1 - W0 + 1);
 
     const materials = new Set([...mbBy.keys(), ...prBy.keys()]);
-    const matList = [...materials].sort();
+    const matList = [...materials].sort().filter(m => !opts.only || opts.only.has(m));
 
     /* ── 2 · model containers ─────────────────────────────────────────── */
     const model = {
@@ -201,6 +210,7 @@
         belowStaleOnly:   new Int32Array(N), belowCovered:   new Int32Array(N)
       },
       checks: { negativeStock: [], noIm: [], imMulti: [...imMulti], stalePos: [], noSoh: [] },
+      series: new Map(),       // PERF-DEEPDIVE — per-material day arrays (opts.keepSeries)
       timingMs: 0
     };
 
@@ -456,7 +466,21 @@
           }
         }
       }
+      /* PERF-COVER-NOPR (v0.2.0-dev) — goods at the 3PL on a PO that has no PR
+         line in the file (e.g. a PO raised before the PR extract starts) are
+         still cover from their first 107 until their first 109. Their PO date
+         is unknown, so the stretch before the 107 can't be counted. */
+      {
+        const linked = new Set(chains.map(c => c.po).filter(Boolean));
+        for (const [po, e] of rc) {
+          if (linked.has(po) || e.f107 == null) continue;
+          const endD = e.f109 != null ? e.f109 : W1 + 1;
+          addRange(poFresh, e.f107, endD, 1);
+          addRange(poQty, e.f107, endD, e.q107);
+        }
+      }
       for (let i = 1; i <= N; i++) { poFresh[i] += poFresh[i-1]; poStale[i] += poStale[i-1]; prOpen[i] += prOpen[i-1]; poQty[i] += poQty[i-1]; prQty[i] += prQty[i-1]; }
+      if (opts.keepSeries) model.series.set(m, { soh: sohArr, deltas, poFresh, poStale, prOpen, poQty, prQty, line, cmp, lineLabel, lineKind });
 
       /* PR start days sorted (response search) */
       const prStarts = chains.filter(c => c.prD != null).map(c => c.prD).sort((a, b) => a - b);
@@ -685,23 +709,50 @@
   }
 
   /* Cohort by anchor month → per-month distribution summary */
-  function cohorts(chains, metric, provisionalPct){
+  /* period key for cohort grouping — 'month' (yyyy-mm) or 'quarter' (yyyy-Qn) */
+  function periodKey(d, gran){
+    if (d == null) return null;
+    const k = ym(d);
+    if (gran === 'quarter') return k.slice(0, 4) + '-Q' + (Math.floor((+k.slice(5, 7) - 1) / 3) + 1);
+    return k;
+  }
+  function periodShort(k){ return k.includes('Q') ? k.slice(2, 4) + k.slice(5) : k.slice(2); }
+  /* every period between the first and last key, so empty months show as gaps */
+  function periodRange(keys, gran){
+    if (!keys.length) return [];
+    const s = keys.slice().sort(), out = [];
+    let y = +s[0].slice(0, 4), p = gran === 'quarter' ? +s[0].slice(6) : +s[0].slice(5, 7);
+    const last = s[s.length - 1];
+    for (let guard = 0; guard < 600; guard++) {
+      const k = gran === 'quarter' ? `${y}-Q${p}` : `${y}-${String(p).padStart(2, '0')}`;
+      out.push(k);
+      if (k === last) break;
+      p++; if (p > (gran === 'quarter' ? 4 : 12)) { p = 1; y++; }
+    }
+    return out;
+  }
+
+  function cohorts(chains, metric, provisionalPct, gran){
     const by = new Map();
     for (const c of chains) {
       const a = metric.anchor(c); if (a == null) continue;
       const x = metric.stage(c);
       if (!(x.s === 'done' || x.s === 'open' || x.s === 'oos')) continue;
-      const k = ym(a);
-      let g = by.get(k); if (!g) { g = { month: k, done: [], open: [], oos: 0, chains: [] }; by.set(k, g); }
+      const k = periodKey(a, gran);
+      let g = by.get(k); if (!g) { g = { month: k, label: k, short: periodShort(k), done: [], open: [], oos: 0, chains: [] }; by.set(k, g); }
       g.chains.push(c);
       if (x.s === 'done' && (metric.signed || x.v >= 0)) g.done.push(x.v);
       else if (x.s === 'open') g.open.push(x.v);
       else g.oos++;
     }
+    /* PERF-BANDS — include empty periods between the first and last so a band
+       chart shows gaps instead of joining across missing months */
+    for (const k of periodRange([...by.keys()], gran)) if (!by.has(k)) by.set(k, { month: k, label: k, short: periodShort(k), done: [], open: [], oos: 0, chains: [] });
     const out = [...by.values()].sort((a, b) => a.month.localeCompare(b.month));
     for (const g of out) {
       const n = g.done.length + g.open.length;
       g.nDone = g.done.length; g.nOpen = g.open.length;
+      g.mean = g.done.length ? g.done.reduce((x, y) => x + y, 0) / g.done.length : null;   // PERF-BANDS
       g.closedPct = n ? g.done.length / n : 0;
       g.provisional = g.closedPct < provisionalPct;
       g.q = doneQuantiles(g.done, [0.1, 0.25, 0.5, 0.75, 0.9]);
@@ -795,9 +846,18 @@
     return out;
   }
 
+  /* PERF-DEEPDIVE — the stock-rebuild sign of one MB51 row (null = the row
+     doesn't move site stock). Same rule as build(); used by the deep-dive's
+     movement ledger so the running stock shown row by row IS the rebuild. */
+  function rowDelta(r){
+    const BC = global.InventoryBackCalc;
+    return signedDelta(trim(r.movementType), num(r.quantity), BC.MVT_SIGN, BC.DIRECTIONAL_MVTS);
+  }
+
   global.PerfEngine = Object.freeze({
+    rowDelta,
     build, METRICS, BINS_DAYS, BINS_SIGNED, BINS_RATIO, binIndex,
-    quantiles, doneQuantiles, collect, cohorts, parityCheck, stockSeries,
+    quantiles, doneQuantiles, collect, cohorts, periodKey, parityCheck, stockSeries,
     DEFAULT_SETTINGS, dn, iso, ym
   });
 })(window);

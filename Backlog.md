@@ -1,5 +1,11 @@
 # Backlog — Calibre MRP Performance
 
+## ✅ SHIPPED — v0.2.0-dev (2026-09-25) — browser-verified, pending operator off-repo validation
+Material deep-dive (tailorable block stack, one time axis for stock · MRP cadence · events · consumption · chains; annual progression; month-on-month band; durations; crossings; order to Max; raw data incl. MB51 ledger) · drill → deep-dive with Prev / Next and Back-restores-state · month-on-month band charts replace the monthly boxes · annual progression on the Overview · PR / PO volume splits (MRP / manual · V1 / PD · outcome) · MRP-activity heat map · Materials table · no-PR 3PL cover. Parity re-checked (1,673/1,673 chains, 200/200 stock series).
+
+## NEXT — PERF-REPORT (operator request 2026-09-25)
+Report output on the deep-dive blocks (and Workbench cards): choose + order the graphs (e.g. stock graph with the MRP cadence underneath on the same time scale, then annual progression), then export as **US Letter (light)** or **widescreen 16:9 (light or dark)** with tiles you drag / resize / delete / add on a blank page → PDF. Heavy on graphics. Borrow the pattern from Tune's report builder (copy, don't touch Tune). Needs a light-theme chart palette (validate against white).
+
 ## ✅ SHIPPED — v0.1.0-dev (2026-09-25) — browser-verified, pending operator off-repo validation
 See `record-of-change.html`. Intake (performance type), population engine with parity check, 13 distribution views, material segments, KPI target slots, data checks.
 

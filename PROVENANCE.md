@@ -12,10 +12,10 @@ a diff against the source shows exactly what differs.
 | File | Status | Source SHA-256 (Tune 2896842) | Current SHA-256 | Local changes |
 |---|---|---|---|---|
 | `intake/intake.css` | verbatim | `ae4fb84e46ae37f4…` | `ae4fb84e46ae37f4…` | — |
-| `intake/intake.html` | modified | `1867a94341239740…` | `7cb4215d1aff0709…` | PERF-INT-TYPE |
+| `intake/intake.html` | modified | `1867a94341239740…` | `7fe3033390c5158b…` | PERF-INT-TYPE |
 | `intake/intake.js` | modified | `e0def4ef21bf2dc7…` | `a2c754e62ca48878…` | PERF-INT-DQ, PERF-INT-FAST, PERF-INT-NAV, PERF-INT-TRIM, PERF-INT-TYPE |
 | `shared/brand-tokens.css` | verbatim | `2f0730a613560c3a…` | `2f0730a613560c3a…` | — |
-| `shared/canonical-schema.js` | modified | `7e9e476a6e9c200c…` | `629dd46bd09f7d73…` | PERF-INT-TYPE |
+| `shared/canonical-schema.js` | modified | `7e9e476a6e9c200c…` | `12137d64cb0d80e1…` | PERF-INT-TYPE |
 | `shared/config.js` | verbatim | `594c45de4531a1c5…` | `594c45de4531a1c5…` | — |
 | `shared/inventory-back-calc.js` | verbatim | `f04114e4f285ed4c…` | `f04114e4f285ed4c…` | — |
 | `shared/locale.js` | verbatim | `86b558ba9646ad98…` | `86b558ba9646ad98…` | — |

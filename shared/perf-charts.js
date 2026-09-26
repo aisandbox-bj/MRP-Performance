@@ -376,11 +376,153 @@
     host._pcClick = (el) => { if (o.onClick) o.onClick(+el.dataset.i); };
   }
 
+  /* ═════════════════════════════════════════════════════════════════════════
+     bandChart(host, opts) — month-on-month "Bollinger" view of a distribution
+     (PERF-BANDS, v0.2.0-dev). Per period: P10–P90 band (light wash), P25–P75
+     band (stronger), median line (2px, dots) and mean line (thin). Periods
+     below the provisional threshold draw hollow dots; periods with no closed
+     items break the lines rather than interpolating.
+       groups [{label, nDone, nOpen, closedPct, provisional, q:{0.1..0.9}, mean, qAll}]
+       opts.signed, opts.target, opts.selected(label), opts.onClick(label), opts.unit
+  ═════════════════════════════════════════════════════════════════════════ */
+  function bandChart(host, o){
+    const W = Math.max(420, host.clientWidth || 880), H = o.height || 250;
+    const padL = 46, padR = 16, padT = 20, padB = 52;
+    const pw = W - padL - padR, ph = H - padT - padB;
+    const gs = o.groups;
+    if (!gs.length) { host.innerHTML = '<div class="pc-empty">No closed items in this selection.</div>'; return; }
+    const vals = [];
+    for (const g of gs) { if (g.q && g.q[0.5] != null) vals.push(g.q[0.1], g.q[0.9], g.mean); }
+    if (o.target != null) vals.push(o.target);
+    let ymin = o.signed ? Math.min(0, ...vals.filter(v => v != null)) : 0;
+    let ymax = Math.max(1, ...vals.filter(v => v != null));
+    ymax = niceMax(ymax); if (ymin < 0) ymin = -niceMax(-ymin);
+    const yv = (v) => padT + ph - ((v - ymin) / (ymax - ymin)) * ph;
+    const n = gs.length, slot = pw / n;
+    const xc = (i) => padL + slot * i + slot / 2;
+    let g = '';
+    for (const t0 of ticks(ymax - ymin, 4)) {
+      const t = ymin + t0, y = yv(t);
+      g += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="${t === 0 ? PAL.axis : PAL.grid}" stroke-width="1"/>`;
+      g += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" class="pc-ax">${fmt(t)}</text>`;
+    }
+    /* contiguous runs of periods that have data → separate band paths */
+    const runs = []; let cur = null;
+    gs.forEach((gr, i) => { const ok = gr.q && gr.q[0.5] != null; if (ok) { if (!cur) { cur = []; runs.push(cur); } cur.push(i); } else cur = null; });
+    const area = (run, lo, hi) => {
+      if (run.length === 1) { const i = run[0]; const w = Math.min(slot * 0.5, 14); return `M${xc(i) - w},${yv(gs[i].q[hi])}H${xc(i) + w}V${yv(gs[i].q[lo])}H${xc(i) - w}Z`; }
+      let d = run.map((i, k) => (k ? 'L' : 'M') + xc(i) + ',' + yv(gs[i].q[hi])).join('');
+      d += run.slice().reverse().map(i => 'L' + xc(i) + ',' + yv(gs[i].q[lo])).join('') + 'Z';
+      return d;
+    };
+    const line = (run, get) => run.map((i, k) => (k ? 'L' : 'M') + xc(i) + ',' + yv(get(gs[i]))).join('');
+    for (const run of runs) {
+      g += `<path d="${area(run, 0.1, 0.9)}" fill="${PAL.s1}" fill-opacity=".14"/>`;
+      g += `<path d="${area(run, 0.25, 0.75)}" fill="${PAL.s1}" fill-opacity=".28"/>`;
+      if (run.length > 1) {
+        g += `<path d="${line(run, x => x.mean)}" fill="none" stroke="${PAL.s2}" stroke-width="1.5" stroke-opacity=".9"/>`;
+        g += `<path d="${line(run, x => x.q[0.5])}" fill="none" stroke="${PAL.pri}" stroke-width="2"/>`;
+      }
+    }
+    if (o.target != null) {
+      const y = yv(o.target);
+      g += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="${PAL.pri}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+      g += `<text x="${W - padR}" y="${y - 5}" text-anchor="end" class="pc-mk pc-tgt">target ${fmt(o.target)} ${esc(o.unit || 'd')}</text>`;
+    }
+    const labelEvery = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(pw / 46))));
+    gs.forEach((gr, i) => {
+      const cx = xc(i), sel = o.selected === gr.label;
+      if (sel) g += `<rect x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${ph}" fill="rgba(240,244,243,0.06)"/>`;
+      if (gr.q && gr.q[0.5] != null) {
+        g += `<circle cx="${cx}" cy="${yv(gr.mean)}" r="2.5" fill="${PAL.s2}"/>`;
+        g += gr.provisional
+          ? `<circle cx="${cx}" cy="${yv(gr.q[0.5])}" r="4" fill="${PAL.surface}" stroke="${PAL.pri}" stroke-width="1.5"/>`
+          : `<circle cx="${cx}" cy="${yv(gr.q[0.5])}" r="4" fill="${PAL.pri}" stroke="${PAL.surface}" stroke-width="2"/>`;
+      }
+      if (gr.nOpen && gr.qAll && gr.qAll[0.9] && gr.qAll[0.9].lowerBound) {
+        const y = yv(Math.min(ymax, gr.qAll[0.9].v));
+        g += `<path d="M${cx - 4},${y + 4}L${cx},${y - 2}L${cx + 4},${y + 4}" fill="none" stroke="${PAL.s1}" stroke-width="1.5"/>`;
+      }
+      g += `<rect data-hit="1" data-label="${esc(gr.label)}" tabindex="0" x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${ph}" fill="transparent"/>`;
+      if (i % labelEvery === 0) {
+        g += `<text x="${cx}" y="${padT + ph + 15}" text-anchor="middle" class="pc-ax">${esc(gr.short || gr.label)}</text>`;
+        g += `<text x="${cx}" y="${padT + ph + 29}" text-anchor="middle" class="pc-ax ${gr.provisional ? 'pc-warn' : ''}">${gr.nDone}</text>`;
+      }
+    });
+    g += `<text x="${padL - 8}" y="${padT + ph + 29}" text-anchor="end" class="pc-ax">n</text>`;
+    if (o.xTitle) g += `<text x="${padL + pw / 2}" y="${H - 6}" text-anchor="middle" class="pc-ttl">${esc(o.xTitle)}</text>`;
+    host.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'Distribution by period')}">${g}</svg>`;
+    if (!host._pcWired) {
+      host._pcWired = true;
+      wireHover(host, (el) => host._pcTip && host._pcTip(el));
+      wireClick(host, (el) => host._pcClick && host._pcClick(el));
+    }
+    host._pcTip = (el) => {
+      const gr = gs.find(x => x.label === el.dataset.label); if (!gr) return null;
+      const q = gr.q || {};
+      const u = ' ' + (o.unit || 'd');
+      const rows = [
+        { value: q[0.5] != null ? fmt(q[0.5]) + u : '—', label: 'median (closed)', color: PAL.pri },
+        { value: gr.mean != null ? fmt(gr.mean) + u : '—', label: 'mean / average (closed)', color: PAL.s2 },
+        { value: q[0.25] != null ? fmt(q[0.25]) + ' – ' + fmt(q[0.75]) + u : '—', label: 'P25 – P75', color: PAL.s1, opacity: .5 },
+        { value: q[0.1] != null ? fmt(q[0.1]) + ' – ' + fmt(q[0.9]) + u : '—', label: 'P10 – P90', color: PAL.s1, opacity: .25 },
+        { value: fmt(gr.nDone), label: 'closed' }, { value: fmt(gr.nOpen), label: 'still open' }
+      ];
+      if (gr.qAll && gr.qAll[0.9]) rows.push({ value: (gr.qAll[0.9].lowerBound ? '≥ ' : '') + fmt(gr.qAll[0.9].v) + u, label: 'P90 incl. still-open' });
+      return { title: gr.label + (gr.provisional ? ` · provisional (${Math.round(gr.closedPct * 100)}% closed)` : ''), rows };
+    };
+    host._pcClick = (el) => { if (o.onClick) o.onClick(el.dataset.label); };
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     annualChevrons(host, opts) — annual progression (PERF-ANNUAL): one strip
+     per year, each leg's median laid end to end on a shared day scale.
+       rows [{label, n, legs:[{label, v, lb, color, n}]}]
+  ═════════════════════════════════════════════════════════════════════════ */
+  function annualChevrons(host, o){
+    const rows = o.rows.filter(r => r.legs.some(l => l.v != null));
+    if (!rows.length) { host.innerHTML = '<div class="pc-empty">No closed chains to summarise by year.</div>'; return; }
+    const W = Math.max(420, host.clientWidth || 880);
+    const padL = 120, padR = 110, rowH = 40, top = 8;
+    const pw = W - padL - padR;
+    const totals = rows.map(r => r.legs.reduce((s, l) => s + (l.v || 0), 0));
+    const xmax = niceMax(Math.max(1, ...totals));
+    const xs = (v) => padL + (v / xmax) * pw;
+    const H = top + rows.length * rowH + 30;
+    let g = '';
+    for (const t of ticks(xmax, 5)) {
+      g += `<line x1="${xs(t)}" x2="${xs(t)}" y1="${top}" y2="${H - 24}" stroke="${PAL.grid}"/>`;
+      g += `<text x="${xs(t)}" y="${H - 8}" text-anchor="middle" class="pc-ax">${fmt(t)} d</text>`;
+    }
+    rows.forEach((r, k) => {
+      const y = top + k * rowH + 6, h = rowH - 14;
+      g += `<text x="10" y="${y + h / 2 + 4}" class="pc-mk">${esc(r.label)}</text>`;
+      g += `<text x="10" y="${y + h / 2 + 17}" class="pc-ax">${fmt(r.n)} chains</text>`;
+      let acc = 0;
+      r.legs.forEach((l, j) => {
+        if (l.v == null) return;
+        const x0 = xs(acc), x1 = xs(acc + l.v), w = Math.max(0, x1 - x0);
+        const tip = 6;
+        const d = w > tip * 2 ? `M${x0},${y}H${x1 - tip}L${x1},${y + h / 2}L${x1 - tip},${y + h}H${x0}${j ? `L${x0 + tip},${y + h / 2}` : ''}Z` : `M${x0},${y}H${x0 + Math.max(2, w)}V${y + h}H${x0}Z`;
+        g += `<path d="${d}" fill="${l.color}" stroke="${PAL.surface}" stroke-width="1.5" data-hit="1" data-k="${k}:${j}"/>`;
+        if (w > 34) g += `<text x="${x0 + w / 2 + (j ? 3 : 0)}" y="${y + h / 2 + 4}" text-anchor="middle" style="font-size:11px;fill:#06141C;font-weight:600;font-family:var(--font-mono)">${l.lb ? '≥' : ''}${fmt(l.v)}</text>`;
+        acc += l.v;
+      });
+      g += `<text x="${padL + pw + 10}" y="${y + h / 2 + 4}" class="pc-mk">Σ ${fmt(totals[k])} d</text>`;
+    });
+    host.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'Annual progression')}">${g}</svg>`;
+    if (!host._pcWired) { host._pcWired = true; wireHover(host, (el) => host._pcTip && host._pcTip(el)); }
+    host._pcTip = (el) => {
+      const [k, j] = el.dataset.k.split(':').map(Number); const r = rows[k], l = r.legs[j];
+      return { title: `${r.label} · ${l.label}`, rows: [{ value: (l.lb ? '≥ ' : '') + fmt(l.v) + ' d', label: 'median', color: l.color }, { value: fmt(l.n), label: 'closed chains in this leg' }] };
+    };
+  }
+
   /* legend (HTML) — swatch mirrors the mark */
   function legend(items){
     return '<div class="pc-legend">' + items.map(it =>
       `<span class="pc-lg"><span class="pc-sw${it.line ? ' line' : ''}" style="background:${it.color};${it.opacity != null ? 'opacity:' + it.opacity + ';' : ''}"></span>${esc(it.label)}</span>`).join('') + '</div>';
   }
 
-  global.PerfCharts = Object.freeze({ PAL, OPEN_OPACITY, histogram, cohortChart, timeBars, stackedColumns, legend, showTip, hideTip, esc });
+  global.PerfCharts = Object.freeze({ PAL, OPEN_OPACITY, histogram, cohortChart, bandChart, annualChevrons, timeBars, stackedColumns, legend, showTip, hideTip, esc });
 })(window);

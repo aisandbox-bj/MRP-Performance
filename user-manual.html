@@ -8,7 +8,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MRP Performance · Manual</title>
-<meta name="app-version" content="0.1.0-dev" />
+<meta name="app-version" content="0.2.0-dev" />
 <link rel="stylesheet" href="shared/brand-tokens.css" />
 <link rel="stylesheet" href="shared/perf.css" />
 <style>
@@ -41,12 +41,13 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
     <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
     Calibre
     <span class="brand-app">MRP Performance</span>
-    <a class="sub" href="record-of-change.html">v0.1.0-dev · Manual</a>
+    <a class="sub" href="record-of-change.html">v0.2.0-dev · Manual</a>
   </div>
   <div class="links">
     <a href="index.html">Dashboard</a>
     <a href="intake/intake.html">Intake</a>
     <a href="workbench/workbench.html">Workbench</a>
+    <a href="material/material.html">Material</a>
     <a href="roadmap.html">Roadmap</a>
     <a href="record-of-change.html">RoC</a>
     <a href="user-manual.html" class="active">Manual</a>
@@ -61,6 +62,7 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
     <a href="#segments">3 · Segments &amp; the time window</a>
     <a href="#reading">4 · Reading a distribution</a>
     <a href="#views">5 · The views</a>
+    <a href="#deepdive">5b · Material deep-dive</a>
     <a href="#targets">6 · Settings &amp; KPI targets</a>
     <a href="#assume">7 · Definitions &amp; assumptions</a>
     <a href="#storage">8 · Where your data lives</a>
@@ -125,6 +127,24 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
       <tr><td>Over / under ordering</td><td>Stock on hand when each receipt arrived vs the trigger line; receipts that pushed a part above Max ($ at unit cost); shelf time before first use.</td></tr>
       <tr><td>Data checks &amp; assumptions</td><td>Every assumption, a live parity check against Tune's own modules, impossible dates, negative rebuilt stock, stale POs, receipts with no PR line.</td></tr>
     </table>
+
+    <h2 id="deepdive">5b · Material deep-dive</h2>
+    <p>Click any row in a drill table, the Materials table or the heat map to open that material. <b>‹ Prev / Next ›</b> steps through the list you came from, in the order it was sorted; <b>← Back to Workbench</b> returns you to the same view, segment and window. The <b>Material</b> box (top right) jumps to any material by number or description.</p>
+    <p>The page is a <b>stack of blocks you tailor</b> in the View bar: tick blocks on or off, drag them into any order, or pick a preset (Mechanics · Graphs · Everything). Your layout is remembered.</p>
+    <ul>
+      <li><b>Time-axis blocks</b> (cyan edge) that sit next to each other draw on <b>one time scale</b>: stock vs Min / Max / SS · MRP cadence · PR / PO / receipt events · consumption · procurement chains. Put the cadence under the stock graph to see stock cross Min (▼) and how long the system took to raise a PR, a PO and a receipt. Hover anywhere for that day; click a chain bar for its dates; use 12 m / 6 m / 3 m or click a crossing to zoom.</li>
+      <li><b>Stock graph:</b> cyan = rebuilt stock on hand; violet = stock + what's on order (open POs, goods at the 3PL); red shading = stocked out; amber shading = below the trigger line with nothing on order.</li>
+      <li><b>Annual progression:</b> per year, each leg's median end to end — how approval, buyer, supplier and 3PL moved year on year.</li>
+      <li><b>Month-on-month band:</b> pick a leg; median (white), mean (violet), P25–P75 and P10–P90 per month or quarter.</li>
+      <li><b>Raw data:</b> the PR lines, the MB51 ledger (each movement's effect on site stock and the rebuilt stock at the end of each day) and receipts by PO.</li>
+    </ul>
+    <h3>Multi-material views in the Workbench</h3>
+    <ul>
+      <li><b>PR / PO volumes &amp; MRP cadence</b> — PRs (by the day they were created — with no MRP run log, that date is the evidence of a run) or POs per day / week / month, split MRP vs manual, V1 vs PD, or outcome; trigger debt underneath on the same axis.</li>
+      <li><b>MRP activity by material</b> — materials × weeks. Amber = days below the line with nothing on order; cyan dot = MRP PR; violet diamond = manual PR. An MRP gap is an amber run without dots.</li>
+      <li><b>Materials in the segment</b> — every material's parameters in one sortable table.</li>
+      <li><b>Month-on-month bands</b> on every leg replace the monthly boxes: read the median and mean for direction, the band width for predictability.</li>
+    </ul>
 
     <h2 id="targets">6 · Settings &amp; KPI targets</h2>
     <p><b>⚙ Settings &amp; targets</b> (top right of the Workbench):</p>

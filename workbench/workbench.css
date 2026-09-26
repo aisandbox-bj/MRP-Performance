@@ -75,13 +75,6 @@
 .assume ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--text-sec); line-height:1.5; }
 .assume b{ color:var(--text-pri); }
 
-/* median-per-leg strip */
-.legstrip{ display:flex; gap:2px; align-items:stretch; min-height:54px; margin-top:4px; }
-.legstrip .leg{ display:flex; flex-direction:column; justify-content:center; padding:6px 10px; min-width:90px; color:#06141C; border-radius:2px; }
-.legstrip .leg span{ font-size:11px; font-weight:600; opacity:.85; }
-.legstrip .leg b{ font-family:var(--font-heading); font-size:18px; }
-.legstrip .legtot{ align-self:center; margin-left:10px; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); white-space:nowrap; }
-
 /* settings modal */
 .wb-modal{ position:fixed; inset:0; z-index:var(--z-modal); display:flex; align-items:center; justify-content:center; }
 .wb-modal-bg{ position:absolute; inset:0; background:rgba(4,8,14,.72); }
@@ -97,3 +90,11 @@
 .set-grid label span{ font-size:11px; color:var(--text-muted); line-height:1.35; }
 .set-grid input{ padding:6px 9px; }
 .wb-empty{ max-width:720px; }
+
+/* v0.2.0-dev */
+.tblwrap.tall{ max-height:640px; }
+.heatwrap{ overflow-x:auto; }
+.heatwrap svg [data-cell], .heatwrap svg [data-row]{ cursor:pointer; }
+.tbl-note{ font-size:11px; color:var(--text-muted); }
+.card-actions .seg-lab{ margin-left:6px; }
+.card-actions select{ width:auto; padding:4px 8px; font-size:12px; }

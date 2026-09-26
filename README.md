@@ -6,7 +6,7 @@ Part of the **Calibre suite** (Tune · Trace · MRP Performance). It is a separa
 
 ## Status
 
-**v0.1.0-dev** (2026-09-25) — first build. Browser-verified; **pending operator validation on real extracts**. Canonical `SCHEMA_VERSION` = `1.0.0` (same contract as Tune), `APP_VERSION` = `0.1.0-dev`. Full history and rollback steps: [`record-of-change.html`](record-of-change.html). Queue: [`roadmap.html`](roadmap.html) and [`Backlog.md`](Backlog.md). Operator manual: [`user-manual.html`](user-manual.html).
+**v0.2.0-dev** (2026-09-25) — material deep-dive (a tailorable stack: stock vs Min/Max with the MRP cadence, events and chains underneath on one time axis; annual progression; month-on-month bands; raw data), drill-down from every list with Prev / Next and Back, month-on-month band charts on every leg, PR / PO volume splits (MRP vs manual, V1 vs PD, outcome), an MRP-activity heat map and a per-material parameters table. v0.1.0-dev (first build) is the rollback. Browser-verified; **pending operator validation on real extracts**. `SCHEMA_VERSION` = `1.0.0` (same contract as Tune), `APP_VERSION` = `0.2.0-dev`. Full history and rollback steps: [`record-of-change.html`](record-of-change.html). Queue: [`roadmap.html`](roadmap.html) and [`Backlog.md`](Backlog.md). Operator manual: [`user-manual.html`](user-manual.html).
 
 ## What it answers
 
@@ -24,7 +24,8 @@ All of it for any **segment** — drop-in tiles for movement quartile, unit cost
 ```
 index.html              Dashboard — saved datasets, open .json, clear this app's session data
 intake/                 Intake — MB51 + Inventory Master + PR History → DQ gate → canonical JSON (Tune's intake, adapted)
-workbench/              Workbench — segment builder + 13 distribution views + drill tables
+workbench/              Workbench — segment builder + 15 views (distributions, month-on-month bands, volumes, heat map, materials table) + drill tables
+material/               Material deep-dive — tailorable block stack on one time axis (stock · cadence · events · consumption · chains) + annual progression, bands, durations, crossings, order-to-Max, raw data
 roadmap.html            Roadmap deck — shipped, queue (drag to reorder), decisions, data contract
 record-of-change.html   Every push, what changed, how to roll back
 user-manual.html        Operator manual
@@ -36,7 +37,8 @@ user-manual.html        Operator manual
 perf-engine.js          NEW — population engine: PR→PO→3PL→site chains (signed durations), daily stock rebuild,
                         trigger crossings / exposure / stockouts, V1 order-to-Max, receipts vs Min/Max, reorder
                         frequency, daily MRP / trigger-debt series, cohorts with open items as lower bounds, parity check
-perf-charts.js          NEW — SVG histogram / per-month boxes / time bars / stacked columns (validated palette)
+perf-charts.js          NEW — SVG histogram / month-on-month band / annual chevrons / per-month boxes / time bars / stacked columns (validated palette)
+perf-ui.js              NEW — shared sortable table + CSV, toast, cross-page navigation (drill list → deep-dive Prev / Next → back to the Workbench)
 perf.css                NEW — app styles on top of the Calibre brand tokens
 canonical-schema.js     borrowed · PERF-INT-TYPE (scPerformance type, allMaterials scope, APP_NAME)
 parsers.js              borrowed · PERF-ALIASES (Delivery Date, GR processing time, MB51 value / entry date / SLoc),

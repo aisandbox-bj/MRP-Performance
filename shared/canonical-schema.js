@@ -1,5 +1,5 @@
 /* ═══ BUILD-STAMP ═══════════════════════════════════════════════════════════
-   Calibre MRP Performance · v0.1.0-dev
+   Calibre MRP Performance · v0.2.0-dev
    Single source of truth for SCHEMA_VERSION and APP_VERSION (line ~22).
    Repo : https://github.com/aisandbox-bj/MRP-Performance
    RoC  : record-of-change.html
@@ -16,7 +16,7 @@
   'use strict';
 
   const SCHEMA_VERSION = '1.0.0';
-  const APP_VERSION    = '0.1.0-dev';
+  const APP_VERSION    = '0.2.0-dev';
   /* PERF-INT-TYPE — which app built the JSON (additive metadata field; Tune
      JSONs simply don't carry it). APP_VERSION alone would be ambiguous
      between the two apps. */

@@ -13,7 +13,13 @@
 
   const $  = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  const E = window.PerfEngine, C = window.PerfCharts;
+  const E = window.PerfEngine, C = window.PerfCharts, U = window.PerfUI;
+  /* v0.2.0-dev (PERF-DEEPDIVE · PERF-BANDS · PERF-MULTI): drill rows open the
+     material deep-dive (Prev / Next through the drill list); the Workbench
+     parks its view, segment and window in sessionStorage so "Back" restores
+     it; month-on-month band charts replace the monthly boxes; new views:
+     Materials in the segment · MRP activity by material (heat map); the
+     cadence view splits PR / PO volumes by trigger, MRP type or outcome. */
   const esc = C.esc;
   const iso = E.iso;
   const fmt = (n, d) => n == null || !Number.isFinite(n) ? '—' : (d ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : Math.round(n).toLocaleString());
@@ -32,6 +38,9 @@
     drill: null,                   // { title, kind, items }
     breakdownDim: {},
     gran: 'week',
+    bandGran: 'month',
+    cad: { measure: 'pr', split: 'trigger' },
+    heat: { sort: 'exposure', rows: 60 },
     matPass: null, matCount: 0,
     quartileCache: new Map()
   };
@@ -201,6 +210,15 @@
   async function boot(){
     try { const s = await AppStorage.get('settings.perf'); if (s) state.settings = Object.assign({}, E.DEFAULT_SETTINGS, { targets: {} }, s); } catch (e) {}
     try { const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (u) { state.view = u.view || state.view; state.period = u.period || state.period; state.gran = u.gran || state.gran; } } catch (e) {}
+    /* PERF-DEEPDIVE — coming back from a material deep-dive: restore exactly
+       the view, segment tiles, window and toggles this tab left with. */
+    const ws = U.loadWorkbenchState();
+    if (ws) {
+      state.view = ws.view || state.view; state.period = ws.period || state.period; state.gran = ws.gran || state.gran;
+      state.sub = Object.assign(state.sub, ws.sub || {}); state.breakdownDim = ws.breakdownDim || {};
+      state.bandGran = ws.bandGran || state.bandGran; state.cad = Object.assign(state.cad, ws.cad || {}); state.heat = Object.assign(state.heat, ws.heat || {});
+      if (Array.isArray(ws.tiles)) { state.tiles = ws.tiles.map(t => Object.assign({}, t, { open: false })); tileSeq = state.tiles.reduce((mx, t) => Math.max(mx, (t.id || 0) + 1), 1); }
+    }
     $('#btnLoadJson').addEventListener('click', () => $('#loadJsonInput').click());
     $('#btnLoadJson2').addEventListener('click', () => $('#loadJsonInput').click());
     $('#loadJsonInput').addEventListener('change', onLoadJson);
@@ -273,7 +291,11 @@
       `<span class="muted">built in ${fmt(m.timingMs)} ms</span>` + tuneNote;
   }
 
-  function saveUi(){ try { localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, period: state.period, gran: state.gran })); } catch (e) {} }
+  function saveUi(){
+    try { localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, period: state.period, gran: state.gran })); } catch (e) {}
+    U.saveWorkbenchState({ view: state.view, period: state.period, gran: state.gran, sub: state.sub, breakdownDim: state.breakdownDim,
+      bandGran: state.bandGran, cad: state.cad, heat: state.heat, tiles: state.tiles.map(t => { const c = Object.assign({}, t); delete c.open; return c; }) });
+  }
 
   /* ═════════════════════════════════════════════════════════════════════════
      SEGMENT BUILDER (one row above everything it scopes)
@@ -447,9 +469,11 @@
   ═════════════════════════════════════════════════════════════════════════ */
   const VIEWS = [
     { key: 'overview',  label: 'Overview',                        group: null },
+    { key: 'materials', label: 'Materials in the segment',        group: null },
     { key: 'response',  label: 'Trigger → PR response',           group: 'MRP response' },
     { key: 'exposure',  label: 'Exposure & stockouts',            group: 'MRP response' },
-    { key: 'cadence',   label: 'MRP cadence & silent periods',    group: 'MRP response' },
+    { key: 'cadence',   label: 'PR / PO volumes & MRP cadence',   group: 'MRP response' },
+    { key: 'heat',      label: 'MRP activity by material',        group: 'MRP response' },
     { key: 'outcomes',  label: 'PR outcomes & cancellations',     group: 'MRP response' },
     { key: 'internal',  label: 'Internal · PR → PO',              group: 'Process legs' },
     { key: 'supplier',  label: 'Supplier · PO → 3PL',             group: 'Process legs' },
@@ -487,10 +511,12 @@
       overview: viewOverview, response: viewResponse, exposure: viewExposure, cadence: viewCadence,
       outcomes: viewOutcomes, internal: viewInternal, supplier: () => metricView(host, 'C', { breakdown: 'manufacturer', intro: supplierIntro() }),
       threepl: viewThreePL, e2e: () => metricView(host, 'E2E', { breakdown: 'mrpType' }),
-      plan: viewPlan, sizing: viewSizing, overunder: viewOverUnder, checks: viewChecks
+      plan: viewPlan, sizing: viewSizing, overunder: viewOverUnder, checks: viewChecks,
+      materials: viewMaterials, heat: viewHeat
     }[state.view] || viewOverview;
     host.innerHTML = '';
     fn(host);
+    saveUi();
   }
 
   function card(host, title, sub, actionsHtml){
@@ -523,7 +549,7 @@
     const M = E.METRICS[key];
     const base = chainsFor(M);
     const sel = state.cohortSel && state.cohortSel.view === state.view + ':' + key ? state.cohortSel.month : null;
-    const chains = sel ? base.filter(c => E.ym(M.anchor(c)) === sel) : base;
+    const chains = sel ? base.filter(c => E.periodKey(M.anchor(c), state.bandGran) === sel) : base;
     const col = E.collect(chains, M);
     const stageV = (c) => M.stage(c).v;
     const doneV = col.done.map(stageV), openV = col.open.map(stageV);
@@ -615,13 +641,15 @@
       setDrill({ kind: 'chains', metric: key, title: `${M.label} · ${title}`, items });
     }));
 
-    /* per-month boxes */
-    const groups = E.cohorts(base, M, state.settings.provisionalPct);
-    const c2 = card(host, `By month · ${M.anchorLabel.toLowerCase()} …`,
-      `Box = middle half (P25–P75), whisker = P10–P90, white tick = median, all of CLOSED items. The caret marks the P90 once still-open items are counted (at least). Months below ${Math.round(state.settings.provisionalPct * 100)}% closed are provisional (dimmed). Click a month to focus the view on it.`);
-    const gHost = div(c2, 'chart');
-    C.cohortChart(gHost, { groups, signed: !!M.signed, target, selected: sel, xTitle: `${M.anchorLabel} (yy-mm) · % closed`,
-      onMonth: (m) => { state.cohortSel = (sel === m) ? null : { view: state.view + ':' + key, month: m }; state.drill = null; renderView(); } });
+    /* PERF-BANDS — month-on-month (or quarter) band: median + mean + P25–P75 + P10–P90 */
+    const groups = E.cohorts(base, M, state.settings.provisionalPct, state.bandGran);
+    const c2 = card(host, `${state.bandGran === 'quarter' ? 'Quarter' : 'Month'} on ${state.bandGran} · ${M.anchorLabel} …`,
+      `White line = median, violet = mean (average), bands = P25–P75 and P10–P90 of CLOSED items; n = closed items. Hollow dots = provisional (below ${Math.round(state.settings.provisionalPct * 100)}% closed); the caret marks the P90 once still-open items are counted. Narrowing bands = a more predictable process; a falling median = getting faster. Click a period to focus the view on it.`,
+      bandGranButtons());
+    wireBandGran(c2);
+    div(c2, null, bandLegend());
+    C.bandChart(div(c2, 'chart'), { groups, signed: !!M.signed, target, selected: sel, xTitle: `${M.anchorLabel} (${state.bandGran}) · n closed`, aria: M.label + ' by period',
+      onClick: (pk) => { state.cohortSel = (sel === pk) ? null : { view: state.view + ':' + key, month: pk }; state.drill = null; renderView(); } });
 
     /* breakdown */
     breakdownCard(host, key, chains, M, opts.breakdown || 'manufacturer');
@@ -698,7 +726,10 @@
     const t = div(c, 'tblwrap');
     const spec = DRILL_SPECS[d.kind];
     const rows = d.items.map(it => spec.row(it, d));
-    renderTable(t, { rows, cols: spec.cols(d), sort: spec.sort || null, limit: 500, csv: 'drill-' + d.kind });
+    const hasMat = rows.length && rows[0].material !== undefined;
+    renderTable(t, { rows, cols: spec.cols(d), sort: spec.sort || null, limit: 500, csv: 'drill-' + d.kind,
+      onRow: hasMat ? (r, sorted) => U.openMaterial(r.material, sorted.map(x => x.material), d.title) : null,
+      footNote: hasMat ? 'Click a row to open that material\'s deep-dive — Prev / Next then steps through this list in the order shown.' : '' });
   }
   const mInfo = (m) => state.model.mat.get(m) || {};
   const DRILL_SPECS = {
@@ -785,44 +816,9 @@
     }
   };
 
-  /* ─── sortable table with CSV ─────────────────────────────────────────── */
-  function renderTable(host, spec){
-    const st = { key: spec.sort ? spec.sort.key : null, dir: spec.sort ? spec.sort.dir : 1 };
-    const draw = () => {
-      const rows = spec.rows.slice();
-      if (st.key) {
-        const col = spec.cols.find(c => c.key === st.key) || {};
-        const sv = col.sv || (r => r[st.key]);
-        rows.sort((a, b) => {
-          const x = sv(a), y = sv(b);
-          if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
-          return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * st.dir;
-        });
-      }
-      const lim = spec.limit || 5000;
-      const shown = rows.slice(0, lim);
-      host.innerHTML = `<table class="dt"><thead><tr>${spec.cols.map(c => `<th class="${c.num ? 'num' : ''}" data-k="${c.key}">${esc(c.label)}${st.key === c.key ? `<span class="srt">${st.dir > 0 ? '▲' : '▼'}</span>` : ''}</th>`).join('')}</tr></thead><tbody>` +
-        shown.map((r, i) => `<tr class="${spec.onRow ? 'click' : ''}" data-i="${i}">${spec.cols.map(c => {
-          const v = r[c.key]; const out = c.f ? c.f(v, r) : (typeof v === 'number' ? fmt(v, Math.abs(v) < 10 && v % 1 ? 1 : 0) : v);
-          return `<td class="${c.num ? 'num' : ''} ${c.cls || ''}">${c.html ? out : esc(out == null ? '—' : out)}</td>`;
-        }).join('')}</tr>`).join('') + `</tbody></table>` +
-        `<div class="tbl-foot">${rows.length > lim ? `Showing ${fmt(lim)} of ${fmt(rows.length)} — ` : ''}<button class="btn-sm ghost" data-csv>⤓ CSV (${fmt(rows.length)} rows)</button></div>`;
-      host.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
-        const k = th.dataset.k; if (st.key === k) st.dir = -st.dir; else { st.key = k; st.dir = (spec.cols.find(c => c.key === k) || {}).num ? -1 : 1; } draw();
-      }));
-      if (spec.onRow) host.querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => spec.onRow(shown[+tr.dataset.i])));
-      host.querySelector('[data-csv]').addEventListener('click', () => downloadCsv(spec.csv || 'table', spec.cols, rows));
-    };
-    draw();
-  }
-  function downloadCsv(name, cols, rows){
-    const q = (v) => { if (v == null) return ''; const s = typeof v === 'object' && v.v != null ? String(v.v) : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const lines = [cols.map(c => q(c.label)).join(',')].concat(rows.map(r => cols.map(c => q(r[c.key])).join(',')));
-    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    const ds = ((state.json.metadata || {}).assessmentName || 'dataset').replace(/[^A-Za-z0-9_-]+/g, '_');
-    a.download = `${ds}-${name}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }
+  /* ─── sortable table with CSV — shared with the deep-dive (shared/perf-ui.js) ─ */
+  function dsName(){ return ((state.json && state.json.metadata) || {}).assessmentName || 'dataset'; }
+  function renderTable(host, spec){ return U.renderTable(host, Object.assign({ csvPrefix: dsName() }, spec)); }
 
   /* ═════════════════════════════════════════════════════════════════════════
      VIEWS
@@ -862,13 +858,11 @@
     div(c, 'stats big', tiles);
     c.querySelectorAll('[data-go]').forEach(t => t.addEventListener('click', () => go(t.dataset.go)));
 
-    /* chain leg medians as a single stacked strip (timeline-style) */
-    const legsOnly = ['A', 'B', 'C', 'D'];
-    const meds = legsOnly.map(k => { const M = E.METRICS[k]; const col = E.collect(chainsFor(M), M); const q = E.quantiles(col.done.map(x => M.stage(x).v), col.open.map(x => M.stage(x).v), [0.5]); return { k, M, q: q[0.5] }; });
-    const total = meds.reduce((s, x) => s + (x.q ? x.q.v : 0), 0);
-    const c2 = card(host, 'Typical chain · median of each leg', 'Medians don\'t add up to the median end-to-end — each leg\'s middle case is shown for proportion, not as a sum. The spread of every leg is in its own view.');
-    div(c2, 'legstrip', meds.map((x, i) => `<div class="leg" style="flex:${Math.max(0.6, x.q ? x.q.v : 0)};background:${[C.PAL.s1, C.PAL.s2, C.PAL.s3, C.PAL.s4][i]}"><span>${esc(x.M.label)}</span><b>${x.q ? (x.q.lowerBound ? '≥ ' : '') + fmt(x.q.v) + ' d' : '—'}</b></div>`).join('')
-      + `<div class="legtot">Σ medians ${fmt(total)} d</div>`);
+    /* PERF-ANNUAL — annual progression for the segment: per year a PR was
+       created, each leg's median end to end (plus the whole window). */
+    const c2 = card(host, 'Annual progression · median of each leg',
+      'Per year the PR was created: approval → buyer → supplier → 3PL, each leg\'s median laid end to end (“≥” when still-open chains make it a lower bound). Medians don\'t add up to the end-to-end median — they show proportion, and how each leg moved year on year. The spread of every leg is in its own view.');
+    C.annualChevrons(div(c2, 'chart'), { rows: annualRowsFor(m.chains.filter(c => matOk(c.material) && chainPass(c) && inPeriod(c.prD))), aria: 'Annual progression for the segment' });
 
     const c3 = card(host, 'What this dataset can and can\'t show', '');
     div(c3, 'muted-note', `Stock is rebuilt day by day from MB51 back from the Inventory Master snapshot (as of <b>${esc(m.asOfIso)}</b>, ${esc(m.asOfSource)}). Min / Max / SS / MRP type are <b>today's values</b> — earlier changes can't be seen. Manufacturer stands in for vendor. 107 is read as <b>arrival at the 3PL</b> and 109 as <b>received at site</b>. Full list and live checks under <a href="#" data-go2="checks">Data checks &amp; assumptions</a>.`);
@@ -882,7 +876,7 @@
     const all = allK.filter(e => e.realLine);
     const notLine = allK.filter(e => !e.realLine);
     const sel = state.cohortSel && state.cohortSel.view === 'response' ? state.cohortSel.month : null;
-    const eps = sel ? all.filter(e => E.ym(e.T) === sel) : all;
+    const eps = sel ? all.filter(e => E.periodKey(e.T, state.bandGran) === sel) : all;
     const counts = {};
     for (const e of eps) counts[e.response] = (counts[e.response] || 0) + 1;
     div(host, 'view-intro', `<h2>How fast does the system respond when stock drops below its trigger line?</h2><p>A <b>crossing</b> is a day the rebuilt site stock fell below its trigger line — V1 → Min, PD with safety stock → SS. <b>Covered</b> means a PO was open or goods were at the 3PL; a PR on its own is not cover. Response time is measured only when nothing was on order and no PR was open at the crossing.</p>`);
@@ -937,9 +931,12 @@
 
     /* per-month */
     const metricLike = { anchor: e => e.T, stage: e => e.response === 'PR raised' ? { v: e.toPr, s: 'done' } : e.response === 'no PR yet' ? { v: m.asOf - e.T, s: 'open' } : { v: null, s: 'na' } };
-    const groups = E.cohorts(all.filter(e => !e.leftCensored), metricLike, state.settings.provisionalPct);
-    const c3 = card(host, 'By month · stock crossed in …', 'Trigger → PR days, closed crossings; caret = P90 once still-open crossings are counted. Click a month to focus.');
-    C.cohortChart(div(c3, 'chart'), { groups, target, selected: sel, xTitle: 'month crossed (yy-mm) · % with a PR', onMonth: (mo) => { state.cohortSel = sel === mo ? null : { view: 'response', month: mo }; state.drill = null; renderView(); } });
+    const groups = E.cohorts(all.filter(e => !e.leftCensored), metricLike, state.settings.provisionalPct, state.bandGran);
+    const c3 = card(host, `${state.bandGran === 'quarter' ? 'Quarter' : 'Month'} on ${state.bandGran} · stock crossed in …`, 'Trigger → PR days of crossings where a PR followed: median, mean, P25–P75 and P10–P90; caret = P90 once crossings with no PR yet are counted. Click a period to focus.', bandGranButtons());
+    wireBandGran(c3);
+    div(c3, null, bandLegend());
+    C.bandChart(div(c3, 'chart'), { groups, target, selected: sel, xTitle: `${state.bandGran} crossed · n with a PR`, aria: 'Trigger to PR by period',
+      onClick: (pk) => { state.cohortSel = sel === pk ? null : { view: 'response', month: pk }; state.drill = null; renderView(); } });
 
     /* breakdown */
     const bk = 'response', dim = state.breakdownDim[bk] || 'mrpType';
@@ -1055,23 +1052,45 @@
   /* ── MRP cadence & silent periods ─────────────────────────────────────── */
   function viewCadence(host){
     const m = state.model, pb = periodBuckets();
-    const chains = m.chains.filter(c => matOk(c.material) && c.prD != null && c.prD >= pb.a && c.prD <= pb.b);
-    const mrp = new Array(pb.labels.length).fill(0), man = mrp.slice(), unk = mrp.slice();
-    const mrpDays = new Set();
-    const dow = new Array(7).fill(0);
-    for (const c of chains) {
-      const j = pb.idx.get(pb.keyOf(c.prD));
-      if (c.trig === 'MRP') { mrp[j]++; mrpDays.add(c.prD); dow[(new Date(c.prD * 86400000).getUTCDay() + 6) % 7]++; }
-      else if (c.trig === 'Manual') man[j]++; else unk[j]++;
+    const cad = state.cad;
+    const inB = (d) => d != null && d >= pb.a && d <= pb.b;
+    const chains = m.chains.filter(c => matOk(c.material) && chainPass(c) && inB(cad.measure === 'po' ? (c.po ? c.poD : null) : c.prD));
+    /* the MRP run days (for quiet stretches + weekday) always come from MRP-created PRs */
+    const mrpDays = new Set(), dow = new Array(7).fill(0);
+    for (const c of m.chains) {
+      if (!matOk(c.material) || c.trig !== 'MRP' || !inB(c.prD)) continue;
+      mrpDays.add(c.prD); dow[(new Date(c.prD * 86400000).getUTCDay() + 6) % 7]++;
     }
-    div(host, 'view-intro', `<h2>How often does MRP raise PRs — and when does it go quiet?</h2><p>MRP-created PRs (creation indicator B) per ${state.gran}. A quiet stretch only matters if parts were waiting: the <b>trigger debt</b> chart underneath shows how many materials sat below their line with nothing on order and no PR. Quiet + rising debt suggests MRP didn't run, or its output didn't reach PRs.</p>`);
-    const c1 = card(host, 'MRP-created PRs, manual PRs and trigger debt', 'Small multiples — each chart its own scale, same time axis.', granButtons());
+    const SPLITS = {
+      trigger: { label: 'MRP vs manual', keys: [['MRP', 'MRP-created', C.PAL.s1], ['Manual', 'Manual', C.PAL.s2], ['Other', 'Unknown / other', C.PAL.s3]],
+                 of: c => c.trig === 'MRP' ? 'MRP' : c.trig === 'Manual' ? 'Manual' : 'Other' },
+      mrp:     { label: 'V1 vs PD', keys: [['V1', 'V1', C.PAL.s1], ['PD', 'PD', C.PAL.s2], ['Other', 'Other / not in Inv. Master', C.PAL.s3]],
+                 of: c => { const t = mInfo(c.material).mrpType; return t === 'V1' ? 'V1' : t === 'PD' ? 'PD' : 'Other'; } },
+      outcome: cad.measure === 'po'
+        ? { label: 'Receipt status', keys: [['site', 'Received at site', C.PAL.s1], ['tpl', 'At the 3PL', C.PAL.s4], ['await', 'Awaiting receipt', C.PAL.s2]],
+            of: c => c.g109 != null ? 'site' : c.g107 != null ? 'tpl' : 'await' }
+        : { label: 'Outcome', keys: [['po', 'Became a PO', C.PAL.s1], ['open', 'Still open', C.PAL.s2], ['churn', 'MRP churn', C.PAL.s3], ['cancel', 'Cancelled', C.PAL.s4]],
+            of: c => c.po ? 'po' : c.churn ? 'churn' : c.cancelled ? 'cancel' : 'open' }
+    };
+    const sp = SPLITS[cad.split] || SPLITS.trigger;
+    const vals = Object.fromEntries(sp.keys.map(k => [k[0], new Array(pb.labels.length).fill(0)]));
+    for (const c of chains) { const d = cad.measure === 'po' ? c.poD : c.prD; const j = pb.idx.get(pb.keyOf(d)); vals[sp.of(c)][j]++; }
+    const labels = pb.labels.map(shortLabel);
+    div(host, 'view-intro', `<h2>PR and PO volumes — where MRP runs, and where it doesn't</h2><p>PRs are counted on the day they were created — with no MRP run log, that date is the evidence of an MRP run. Split by MRP vs manual, V1 vs PD, or outcome, for whatever segment is set above. The <b>trigger debt</b> chart underneath (same time axis) counts materials sitting below their trigger line with nothing on order and no PR: quiet PR days while debt climbs point at MRP not running, or its output not reaching PRs.</p>`);
+    const c1 = card(host, `${cad.measure === 'po' ? 'POs raised' : 'PRs created'} per ${state.gran} · by ${sp.label}`, `${fmt(chains.length)} ${cad.measure === 'po' ? 'PO lines' : 'PR lines'} in the segment and window. Click a column to list them.`,
+      `<span class="seg-lab">Count</span><button class="btn-sm ${cad.measure === 'pr' ? 'on' : ''}" data-meas="pr">PRs</button><button class="btn-sm ${cad.measure === 'po' ? 'on' : ''}" data-meas="po">POs</button>
+       <span class="seg-lab">Split</span>${Object.entries(SPLITS).map(([k, v]) => `<button class="btn-sm ${cad.split === k ? 'on' : ''}" data-split="${k}">${esc(v.label)}</button>`).join('')}
+       <span class="seg-lab">By</span>${granButtons()}`);
     wireGran(c1);
+    c1.querySelectorAll('[data-meas]').forEach(b => b.addEventListener('click', () => { cad.measure = b.dataset.meas; state.drill = null; renderView(); }));
+    c1.querySelectorAll('[data-split]').forEach(b => b.addEventListener('click', () => { cad.split = b.dataset.split; state.drill = null; renderView(); }));
+    div(c1, null, C.legend(sp.keys.map(k => ({ label: k[1], color: k[2] }))));
+    C.stackedColumns(div(c1, 'chart'), { labels, height: 240, aria: 'Volumes per period',
+      series: sp.keys.map(k => ({ key: k[0], label: k[1], color: k[2], values: vals[k[0]] })),
+      onClick: (j) => setDrill({ kind: 'chains', metric: 'AB', title: `${cad.measure === 'po' ? 'POs raised' : 'PRs created'} · ${pb.labels[j]}`,
+        items: chains.filter(c => pb.idx.get(pb.keyOf(cad.measure === 'po' ? c.poD : c.prD)) === j) }) });
     const series = exposureSeries();
-    timeBars(div(c1, 'chart'), pb.labels.map(shortLabel), mrp, C.PAL.s1, `MRP-created PRs per ${state.gran}`, 'PRs', 160, false);
-    timeBars(div(c1, 'chart'), pb.labels.map(shortLabel), series.debt, C.PAL.s2, 'Trigger debt · materials below line, nothing on order, no PR (avg / day)', 'materials / day', 140, false);
-    timeBars(div(c1, 'chart'), pb.labels.map(shortLabel), man, C.PAL.s3, `Manual PRs per ${state.gran}`, 'PRs', 130, true);
-    if (unk.some(v => v)) div(c1, 'muted-note', `${fmt(unk.reduce((a, b) => a + b, 0))} PR lines have a blank or other creation indicator — counted separately, not assumed to be MRP.`);
+    timeBars(div(c1, 'chart'), labels, series.debt, C.PAL.s3, 'Trigger debt · materials below their line, nothing on order, no PR (avg / day)', 'materials / day', 140, true);
 
     /* silent gaps between MRP-PR days */
     const daysSorted = [...mrpDays].sort((a, b) => a - b);
@@ -1325,6 +1344,168 @@
         cols: [{ key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }].concat(rows[0].po !== undefined ? [{ key: 'po', label: 'PO' }] : []).concat(vlab ? [{ key: 'v', label: vlab, num: true, f: v => fmt(v, 1) }] : []) }));
     }
     drillCard(host);
+  }
+
+  /* ─── PERF-BANDS helpers ──────────────────────────────────────────────── */
+  function bandGranButtons(){ return ['month', 'quarter'].map(g => `<button class="btn-sm ${state.bandGran === g ? 'on' : ''}" data-bgran="${g}">${g[0].toUpperCase() + g.slice(1)}</button>`).join(''); }
+  function wireBandGran(el){ el.querySelectorAll('[data-bgran]').forEach(b => b.addEventListener('click', () => { state.bandGran = b.dataset.bgran; state.cohortSel = null; state.drill = null; renderView(); })); }
+  function bandLegend(){
+    return C.legend([{ label: 'Median', color: C.PAL.pri, line: true }, { label: 'Mean (average)', color: C.PAL.s2, line: true },
+      { label: 'P25 – P75', color: C.PAL.s1, opacity: .5 }, { label: 'P10 – P90', color: C.PAL.s1, opacity: .22 }, { label: 'Hollow dot = provisional', color: C.PAL.pri, opacity: .35 }]);
+  }
+  /* PERF-ANNUAL — per-year leg medians (open items as lower bounds) */
+  const ANNUAL_LEGS = [['A', C.PAL.s1], ['B', C.PAL.s2], ['C', C.PAL.s3], ['D', C.PAL.s4]];
+  function annualRowsFor(chains){
+    const years = [...new Set(chains.map(x => x.prD != null ? iso(x.prD).slice(0, 4) : null).filter(Boolean))].sort();
+    const row = (label, cs) => ({ label, n: cs.length, legs: ANNUAL_LEGS.map(([k, color]) => {
+      const M = E.METRICS[k], done = [], open = [];
+      for (const c of cs) { const x = M.stage(c); if (x.s === 'done' && x.v >= 0) done.push(x.v); else if (x.s === 'open') open.push(x.v); }
+      const q = E.quantiles(done, open, [0.5])[0.5];
+      return { label: M.label, v: q ? q.v : null, lb: q ? q.lowerBound : false, color, n: done.length };
+    }) });
+    const out = years.map(y => row(y, chains.filter(c => c.prD != null && iso(c.prD).startsWith(y))));
+    if (years.length > 1) out.push(row('All years', chains));
+    return out;
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     PERF-MULTI — Materials in the segment: the parameters side by side
+  ═════════════════════════════════════════════════════════════════════════ */
+  function viewMaterials(host){
+    const m = state.model;
+    div(host, 'view-intro', `<h2>Materials in the segment — the parameters side by side</h2><p>One row per material in the segment and window: PR volumes (MRP vs manual, churn), leg medians, trigger crossings and exposure, stockouts, and whether V1 orders reach Max. Sort any column; click a row to open that material's deep-dive — Prev / Next then steps through this list in the order shown.</p>`);
+    const per = new Map();
+    const get = (mat) => {
+      let r = per.get(mat);
+      if (!r) { const i = mInfo(mat); r = { material: mat, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, min: i.min, max: i.max, ss: i.ss, soh: i.soh, map: i.map, consYr: i.consPerYr,
+        pr: 0, mrpPr: 0, manPr: 0, churn: 0, canc: 0, po: 0, _AB: [], _C: [], _D: [], _E2E: [], cross: 0, naked: 0, _toPr: [], exp: 0, so: 0, soDays: 0, ord: 0, _ratio: [], toMax: 0, small: 0,
+        reorder: null, neg: i.minSoh != null && i.minSoh < -0.001 ? 'yes' : '', oos: 0 }; per.set(mat, r); }
+      return r;
+    };
+    for (const mat of state.matPass) get(mat);
+    for (const c of m.chains) {
+      if (!matOk(c.material) || !chainPass(c)) continue;
+      if (inPeriod(c.prD)) { const r = get(c.material); r.pr++; if (c.trig === 'MRP') r.mrpPr++; else if (c.trig === 'Manual') r.manPr++; if (c.churn) r.churn++; else if (c.cancelled && !c.po) r.canc++; if (c.po) r.po++; }
+      for (const k of ['AB', 'C', 'D', 'E2E']) {
+        const M = E.METRICS[k]; if (!inPeriod(M.anchor(c))) continue;
+        const x = M.stage(c); if (x.s === 'done' && x.v >= 0) get(c.material)['_' + k].push(x.v); else if (x.s === 'oos' || (x.s === 'done' && x.v < 0)) get(c.material).oos++;
+      }
+    }
+    for (const e of m.episodes) {
+      if (!e.realLine || !matOk(e.material) || !inPeriod(e.T)) continue;
+      const r = get(e.material);
+      if (!e.leftCensored) { r.cross++; if (!e.coveredAtT && !e.prOpenAtT) r.naked++; }
+      if (e.toPr != null) r._toPr.push(e.toPr);
+      r.exp += e.noCoverNoPr + e.noCoverPr;
+    }
+    for (const x of m.stockouts) { if (!matOk(x.material) || !inPeriod(x.T)) continue; const r = get(x.material); r.so++; r.soDays += x.days; }
+    for (const o of m.orders) {
+      if (!matOk(o.material) || !inPeriod(o.d) || !chainPass(o.chain)) continue;
+      const r = get(o.material); r.ord++;
+      if (o.ratio != null) { r._ratio.push(o.ratio); if (o.ratio >= 0.9 && o.ratio <= 1.1) r.toMax++; if (o.ratio < 0.5) r.small++; }
+    }
+    for (const x of m.reorder) if (per.has(x.material)) per.get(x.material).reorder = x.ratio;
+    const med = (a) => { if (!a.length) return null; const t = a.slice().sort((x, y) => x - y); return t[Math.floor((t.length - 1) / 2)]; };
+    const rows = [...per.values()].map(r => Object.assign(r, { mAB: med(r._AB), mC: med(r._C), mD: med(r._D), mE2E: med(r._E2E), mToPr: med(r._toPr), mRatio: med(r._ratio),
+      toMaxPct: r.ord ? r.toMax / r.ord : null, churnPct: r.pr ? r.churn / r.pr : null, manPct: r.pr ? r.manPr / r.pr : null }));
+    const pctF = (v) => v == null ? '—' : Math.round(v * 100) + '%';
+    const c = card(host, `${fmt(rows.length)} materials`, `Window: ${esc(periodLabel())}. Leg medians are of closed chains anchored on each leg's start; “exposed” = days below the trigger line with nothing on order.`);
+    renderTable(div(c, 'tblwrap tall'), {
+      rows, sort: { key: 'exp', dir: -1 }, limit: 600, csv: 'materials',
+      cols: [
+        { key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }, { key: 'mfr', label: 'Manufacturer' }, { key: 'mrp', label: 'MRP' },
+        { key: 'min', label: 'Min', num: true }, { key: 'max', label: 'Max', num: true }, { key: 'ss', label: 'SS', num: true }, { key: 'soh', label: 'Stock', num: true },
+        { key: 'map', label: 'Unit $', num: true, f: v => money(v) }, { key: 'consYr', label: 'Used / yr', num: true, f: v => fmt(v, 1) },
+        { key: 'pr', label: 'PRs', num: true }, { key: 'mrpPr', label: 'MRP', num: true }, { key: 'manPr', label: 'Manual', num: true }, { key: 'manPct', label: 'Manual %', num: true, f: pctF },
+        { key: 'churnPct', label: 'Churn %', num: true, f: pctF }, { key: 'canc', label: 'Cancelled', num: true }, { key: 'po', label: 'POs', num: true },
+        { key: 'mAB', label: 'PR→PO (d)', num: true }, { key: 'mC', label: 'Supplier (d)', num: true }, { key: 'mD', label: '3PL (d)', num: true }, { key: 'mE2E', label: 'PR→site (d)', num: true },
+        { key: 'cross', label: 'Crossings', num: true }, { key: 'naked', label: 'Nothing on order at crossing', num: true }, { key: 'mToPr', label: 'Trigger→PR (d)', num: true },
+        { key: 'exp', label: 'Exposed (d)', num: true }, { key: 'so', label: 'Stockouts', num: true }, { key: 'soDays', label: 'Stocked-out (d)', num: true },
+        { key: 'ord', label: 'V1 orders', num: true }, { key: 'toMaxPct', label: 'To Max %', num: true, f: pctF }, { key: 'mRatio', label: 'Ordered ÷ gap', num: true, f: pctF },
+        { key: 'reorder', label: 'Reorders vs plan', num: true, f: v => v == null ? '—' : fmt(v, 2) + '×' },
+        { key: 'oos', label: 'Out of seq.', num: true }, { key: 'neg', label: 'Negative stock' }
+      ],
+      onRow: (r, sorted) => U.openMaterial(r.material, sorted.map(x => x.material), 'Materials in the segment'),
+      footNote: 'Click a row to open its deep-dive.'
+    });
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     PERF-MULTI — MRP activity by material (heat map: materials × weeks)
+  ═════════════════════════════════════════════════════════════════════════ */
+  function viewHeat(host){
+    const m = state.model;
+    let [a, b] = periodBounds();
+    a = a == null ? m.window.start : Math.max(a, m.window.start);
+    b = b == null ? m.window.end : Math.min(b, m.window.end);
+    const wk0 = a - ((new Date(a * 86400000).getUTCDay() + 6) % 7);
+    const nW = Math.floor((b - wk0) / 7) + 1;
+    const wIdx = (d) => Math.floor((d - wk0) / 7);
+    const per = new Map();
+    const get = (mat) => { let x = per.get(mat); if (!x) per.set(mat, x = { material: mat, exp: new Uint8Array(nW), mrp: new Uint16Array(nW), man: new Uint16Array(nW), expTot: 0, mrpN: 0, manN: 0 }); return x; };
+    for (const e of m.episodes) {
+      if (!e.realLine || !matOk(e.material)) continue;
+      for (const r of (e.runs || [])) {
+        if (r[2] !== 0 && r[2] !== 1) continue;
+        for (let d = Math.max(r[0], a); d <= Math.min(r[1], b); d++) { const x = get(e.material); x.exp[wIdx(d)]++; x.expTot++; }
+      }
+    }
+    for (const c of m.chains) {
+      if (!matOk(c.material) || c.prD == null || c.prD < a || c.prD > b || !chainPass(c)) continue;
+      const x = get(c.material);
+      if (c.trig === 'MRP') { x.mrp[wIdx(c.prD)]++; x.mrpN++; } else { x.man[wIdx(c.prD)]++; x.manN++; }
+    }
+    const sorts = { exposure: ['Most days with nothing on order', x => -x.expTot], mrp: ['Most MRP PRs', x => -x.mrpN], manual: ['Most manual PRs', x => -x.manN], material: ['Material number', null] };
+    const hs = state.heat;
+    let rows = [...per.values()];
+    if (hs.sort === 'material') rows.sort((p, q) => p.material.localeCompare(q.material)); else rows.sort((p, q) => sorts[hs.sort][1](p) - sorts[hs.sort][1](q) || p.material.localeCompare(q.material));
+    const total = rows.length;
+    rows = rows.slice(0, hs.rows);
+    div(host, 'view-intro', `<h2>MRP activity by material</h2><p>Each row a material, each column a week. <b>Amber</b> = days that week the part sat below its trigger line with nothing on order (darker = more days). <b>Cyan dot</b> = an MRP-created PR that week, <b>violet diamond</b> = a manual PR. An MRP gap shows as an amber run with no dots; manual diamonds on amber show people covering for MRP. Click a row to open its deep-dive.</p>`);
+    const c = card(host, `${fmt(rows.length)} of ${fmt(total)} active materials · ${fmt(nW)} weeks`, `Window: ${esc(iso(a))} → ${esc(iso(b))}. Only materials with a PR or an exposed day in the window are listed.`,
+      `<span class="seg-lab">Sort</span><select data-hsort>${Object.entries(sorts).map(([k, v]) => `<option value="${k}" ${hs.sort === k ? 'selected' : ''}>${esc(v[0])}</option>`).join('')}</select>
+       <span class="seg-lab">Rows</span>${[40, 80, 150].map(n => `<button class="btn-sm ${hs.rows === n ? 'on' : ''}" data-hrows="${n}">${n}</button>`).join('')}`);
+    c.querySelector('[data-hsort]').addEventListener('change', (e) => { hs.sort = e.target.value; renderView(); });
+    c.querySelectorAll('[data-hrows]').forEach(bt => bt.addEventListener('click', () => { hs.rows = +bt.dataset.hrows; renderView(); }));
+    div(c, null, C.legend([{ label: 'Below the line, nothing on order (days / week)', color: '#FBBF24', opacity: .75 }, { label: 'MRP-created PR', color: C.PAL.s1 }, { label: 'Manual PR', color: C.PAL.s2 }]));
+    const hostEl = div(c, 'chart heatwrap');
+    if (!rows.length) { hostEl.innerHTML = '<div class="pc-empty">No PR or exposed day in this segment and window.</div>'; return; }
+    const W = Math.max(640, hostEl.clientWidth || 1100), padL = 250, padR = 12, padT = 26, rh = 14;
+    const cw = (W - padL - padR) / nW;
+    const H = padT + rows.length * rh + 8;
+    let g = '';
+    for (let w = 0; w < nW; w++) {
+      const d0 = wk0 + w * 7; const dt = new Date(d0 * 86400000);
+      if (dt.getUTCDate() <= 7) { const xx = padL + w * cw; g += `<line x1="${xx}" x2="${xx}" y1="${padT - 6}" y2="${H - 8}" stroke="${C.PAL.grid}"/><text x="${xx + 2}" y="${padT - 10}" class="pc-ax">${esc(iso(d0).slice(2, 7))}</text>`; }
+    }
+    rows.forEach((r, k) => {
+      const y = padT + k * rh;
+      const info = mInfo(r.material);
+      const lab = (r.material + '  ' + (info.description || '')).slice(0, 38);
+      g += `<text x="6" y="${y + rh - 4}" class="pc-ax" style="font-size:10.5px;fill:var(--text-sec)" data-row="${k}">${esc(lab)}</text>`;
+      for (let w = 0; w < nW; w++) {
+        const x0 = padL + w * cw, e = r.exp[w];
+        g += `<rect x="${x0 + 0.5}" y="${y + 1}" width="${Math.max(1, cw - 1)}" height="${rh - 2}" fill="${e ? '#FBBF24' : 'rgba(155,171,168,0.05)'}" fill-opacity="${e ? (0.18 + 0.8 * Math.min(7, e) / 7).toFixed(2) : 1}" data-cell="${k}:${w}"/>`;
+        if (r.mrp[w]) g += `<circle cx="${x0 + cw * 0.33}" cy="${y + rh / 2}" r="${Math.min(3.2, cw / 3)}" fill="${C.PAL.s1}" stroke="${C.PAL.surface}" stroke-width=".8" pointer-events="none"/>`;
+        if (r.man[w]) { const cx = x0 + cw * 0.7, cy = y + rh / 2, s2 = Math.min(3.4, cw / 3); g += `<path d="M${cx},${cy - s2}L${cx + s2},${cy}L${cx},${cy + s2}L${cx - s2},${cy}Z" fill="${C.PAL.s2}" stroke="${C.PAL.surface}" stroke-width=".8" pointer-events="none"/>`; }
+      }
+    });
+    hostEl.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="MRP activity by material and week">${g}</svg>`;
+    const svg = hostEl.querySelector('svg');
+    const list = rows.map(r => r.material);
+    svg.addEventListener('pointermove', (ev) => {
+      const el = ev.target.closest('[data-cell]');
+      if (!el) { C.hideTip(); return; }
+      const [k, w] = el.dataset.cell.split(':').map(Number); const r = rows[k]; const d0 = wk0 + w * 7;
+      C.showTip(ev, [{ value: String(r.exp[w]), label: 'days below the line, nothing on order', color: '#FBBF24' }, { value: String(r.mrp[w]), label: 'MRP-created PRs', color: C.PAL.s1 }, { value: String(r.man[w]), label: 'manual PRs', color: C.PAL.s2 }],
+        `${r.material} · week of ${iso(d0)}`);
+    });
+    svg.addEventListener('pointerleave', C.hideTip);
+    svg.addEventListener('click', (ev) => {
+      const el = ev.target.closest('[data-cell],[data-row]'); if (!el) return;
+      const k = el.dataset.row != null ? +el.dataset.row : +el.dataset.cell.split(':')[0];
+      U.openMaterial(rows[k].material, list, 'MRP activity by material');
+    });
   }
 
   /* ═════════════════════════════════════════════════════════════════════════

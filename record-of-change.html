@@ -329,6 +329,7 @@ main.shell { padding-top: 28px; }
     <a href="index.html">Dashboard</a>
     <a href="intake/intake.html">Intake</a>
     <a href="workbench/workbench.html">Workbench</a>
+    <a href="material/material.html">Material</a>
     <a href="roadmap.html">Roadmap</a>
     <a href="record-of-change.html" class="active">RoC</a>
     <a href="user-manual.html">Manual</a>
@@ -379,6 +380,35 @@ git -C peek push --force-with-lease origin main
   </section>
 
   <div class="roc-list">
+
+    <!-- v0.2.0-dev - material deep-dive + multi-material views + band charts - 2026-09-25 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.2.0</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.2.0-dev — <b>Drill down to one material · multi-material views · month-on-month bands</b> — <b>browser-verified; pending operator off-repo validation</b></h4>
+      <ul>
+        <li><b>New version.</b> <code>APP_VERSION</code> 0.1.0-dev → 0.2.0-dev; the v0.1.0-dev folder is frozen beside it as the local rollback copy. <code>SCHEMA_VERSION</code> unchanged (1.0.0).</li>
+        <li><b>Material deep-dive (new page, PERF-DEEPDIVE).</b> A Trace-style page with the Trend graph at its heart — one material's MRP mechanics as a <b>tailorable stack of blocks</b>: switch blocks on/off and drag them into any order (saved as your default; presets Mechanics · Graphs · Everything). Time-axis blocks that sit next to each other draw on <b>one shared day scale</b>: stock vs Min / Max / SS (rebuilt daily, with stock + on order, stocked-out and “below the line, nothing on order” shading and a ▼ at every crossing) · MRP cadence (PRs per day / week by outcome, ◆ where a manual PR was raised) · PR / PO / 3PL / site events · consumption · procurement-chain bars. So the cadence sits directly under the stock graph and you can see stock cross Min and how long the system took to respond. Hover anywhere for that day (stock, on order, open PRs, the day's events). Other blocks: <b>annual progression</b> (per year, each leg's median end to end — no box plots) · <b>month-on-month band</b> · consolidated durations (every chain as a dot) · trigger crossings (click to zoom the time axis) · order to Max / receipts · raw data (PR lines, an MB51 ledger showing each movement's effect on site stock and the rebuilt end-of-day stock, receipts by PO). The engine runs for that material only but against the whole dataset's window and “as of” date, so every figure matches the Workbench.</li>
+        <li><b>Every drill leads there.</b> Clicking a row in any drill table, the Materials table or the heat map opens the deep-dive; <b>‹ Prev / Next ›</b> steps through the list you came from (in its sorted order), and <b>← Back to Workbench</b> restores the same view, segment tiles and window.</li>
+        <li><b>Month-on-month bands (PERF-BANDS).</b> The monthly boxes are replaced by a Bollinger-style chart on every leg (and on trigger → PR): median line, mean (average) line, P25–P75 and P10–P90 bands of closed items per month or quarter; provisional periods hollow; empty periods left as gaps (never joined). Narrowing bands = a more predictable leg; a falling median = faster. Click a period to focus the view on it.</li>
+        <li><b>Annual progression on the Overview (PERF-ANNUAL)</b> — the old single “typical chain” strip becomes one chevron strip per year plus “All years”.</li>
+        <li><b>Multi-material views (PERF-MULTI).</b> <i>PR / PO volumes &amp; MRP cadence</i> — PRs (by creation date — the evidence of an MRP run) or POs per day / week / month, split <b>MRP vs manual</b>, <b>V1 vs PD</b>, or outcome, with trigger debt underneath on the same time axis; click a column to list it. <i>MRP activity by material</i> — a heat map, materials × weeks: amber = days below the trigger line with nothing on order, cyan dot = MRP PR, violet diamond = manual PR; an MRP gap shows as an amber run with no dots. <i>Materials in the segment</i> — one row per material with the parameters side by side (PR volumes MRP / manual / churn, leg medians, crossings, exposed days, stockouts, V1 orders reaching Max, reorders vs plan, flags).</li>
+        <li><b>Cover now includes goods at the 3PL on POs with no PR line</b> (PERF-COVER-NOPR) — from the first 107 to the first 109. Found while checking the heat map: material 1014469 (V1, Min 10 / Max 16) sat below Min for the whole window; its only receipt (8 units) was on a PO with no PR line, and MRP raised one PR in 15 months, which churned — a genuine finding, not a model artefact.</li>
+        <li><b>Verified in the browser</b> on the June 2026 assessment: every Workbench view and the deep-dive render with zero console errors; parity check still 1,673 / 1,673 chains identical to Trace and 200 / 200 stock series identical to the back-calc; drill → deep-dive → Prev / Next → Back round trip keeps the segment and row order.</li>
+      </ul>
+      <div class="commit">
+        <b>Files.</b> New: <code>material/</code> (html · js · css) · <code>shared/perf-ui.js</code> (shared table, CSV, cross-page navigation). Changed: <code>shared/perf-engine.js</code> (single-material build + day arrays, quarter periods and empty-period gaps, mean per period, <code>rowDelta</code>, no-PR 3PL cover) · <code>shared/perf-charts.js</code> (<code>bandChart</code>, <code>annualChevrons</code>) · <code>workbench/</code> · page navs · docs.
+      </div>
+      <div class="commit rollback">
+        <b>Rollback.</b> Remote <code>backup/pre-v0.2.0</code> branch + <code>checkpoint/pre-v0.2.0</code> tag at the v0.1.0-dev commit; local <code>_rollback/v0.2.0-pre/</code> and the frozen <code>v0.1.0-dev/</code> folder.
+      </div>
+      <div class="commit">
+        <b>Next.</b> Report output — Letter (light) or widescreen 16:9 (light / dark) with movable tiles on a blank page, exported to PDF, built on these same blocks. <b>Still open:</b> 107 semantics; a real 150–500k-line extract through the Intake.
+      </div>
+    </article>
 
     <!-- v0.1.0-dev - first build - 2026-09-25 -->
     <article class="roc-entry dev">

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
+     Calibre MRP Performance · v0.2.0-dev (dev tip)
+     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     RoC  : ../record-of-change.html     (what changed + how to roll back)
+     Material deep-dive (PERF-DEEPDIVE): one material's MRP mechanics on a
+     single shared time axis — stock vs Min/Max, consumption, every PR / PO /
+     receipt, the procurement chains — plus consolidated durations, trigger
+     crossings, order sizing and the raw data.
+═════════════════════════════════════════════════════════════════════════-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MRP Performance · Material</title>
+<meta name="app-version" content="0.2.0-dev" />
+<meta name="app-released" content="2026-09-25" />
+<link rel="stylesheet" href="../shared/brand-tokens.css" />
+<link rel="stylesheet" href="../shared/perf.css" />
+<link rel="stylesheet" href="material.css" />
+</head>
+<body>
+
+<nav class="appnav">
+  <div class="brand">
+    <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
+    Calibre
+    <span class="brand-app">MRP Performance</span>
+    <a class="sub" href="../record-of-change.html" title="Record of Change — version history, what changed, rollback steps">v0.2.0-dev · Material</a>
+  </div>
+  <div class="links">
+    <a href="../index.html">Dashboard</a>
+    <a href="../intake/intake.html">Intake</a>
+    <a href="../workbench/workbench.html">Workbench</a>
+    <a href="material.html" class="active">Material</a>
+    <a href="../roadmap.html">Roadmap</a>
+    <a href="../record-of-change.html">RoC</a>
+    <a href="../user-manual.html">Manual</a>
+  </div>
+</nav>
+
+<main class="md-shell">
+  <div class="md-navrow">
+    <a href="../workbench/workbench.html" class="md-back" id="mdBack">← Back to Workbench</a>
+    <span class="md-list" id="mdList"></span>
+    <span class="spacer"></span>
+    <label class="md-find"><span>Material</span><input type="text" id="mdFind" list="mdMatList" placeholder="number or description…" autocomplete="off" /></label>
+    <datalist id="mdMatList"></datalist>
+  </div>
+
+  <div class="wb-progress hidden" id="mdProgress"><div class="bar" id="mdProgBar"></div><span id="mdProgMsg">Loading…</span></div>
+  <section class="card hidden" id="mdEmpty"></section>
+
+  <div id="mdBody" class="hidden">
+    <header class="md-banner" id="mdBanner"></header>
+    <div class="md-layoutbar" id="mdLayoutBar"></div>
+    <div id="mdBlocks"></div>
+  </div>
+</main>
+
+<script src="../shared/canonical-schema.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="../shared/locale.js"></script>
+<script src="../shared/inventory-back-calc.js"></script>
+<script src="../shared/perf-engine.js"></script>
+<script src="../shared/perf-charts.js"></script>
+<script src="../shared/perf-ui.js"></script>
+<script src="material.js"></script>
+</body>
+</html>
