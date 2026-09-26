@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   workbench/workbench.js · Calibre MRP Performance v0.1.0-dev
+   workbench/workbench.js · Calibre Mirror v0.1.0-dev
    ───────────────────────────────────────────────────────────────────────────
    The performance Workbench. Loads this app's current dataset (AppStorage
    'intake.current', namespace mrpPerf), builds the population model with
@@ -30,7 +30,7 @@
   const state = {
     json: null, model: null,
     settings: Object.assign({}, E.DEFAULT_SETTINGS, { targets: {} }),
-    view: 'overview',
+    view: 'mirror',               // MIRROR — the phase box plots are the landing view
     sub: { internal: 'AB', overunder: 'receipts' },
     tiles: [],                     // segment tiles
     period: { preset: 'all', from: null, to: null },
@@ -43,6 +43,10 @@
     heat: { sort: 'exposure', rows: 60 },
     filtersOpen: false,          // PERF-FILTER-COLLAPSE — the Window + Segment panel starts folded to one line
     tblOpen: {},                 // PERF-NO-SHIFT — which charts have their table view open (it opens OVER the chart)
+    mirrorPhase: 'E2E',          // MIRROR-BOX — the phase whose histogram shows under the box plots
+    mirrorScale: 'log',          // MIRROR-BOX — 'log' (default: short and long phases both readable) | 'lin'
+    show: { done: true, open: true },   // MIRROR-HIST — Completed / In flight switches on every histogram
+    dq: { overdue: false, below: false, out: false, cont: false, trig: '', mrp: '', mfr: '', minDays: '', mode: 'lines' },   // MIRROR-DRILL — quick filters on the drill list (kept across drills)
     matPass: null, matCount: 0,
     quartileCache: new Map()
   };
@@ -220,6 +224,10 @@
       state.sub = Object.assign(state.sub, ws.sub || {}); state.breakdownDim = ws.breakdownDim || {};
       state.bandGran = ws.bandGran || state.bandGran; state.cad = Object.assign(state.cad, ws.cad || {}); state.heat = Object.assign(state.heat, ws.heat || {});
       state.filtersOpen = !!ws.filtersOpen;
+      if (ws.mirrorPhase && E.METRICS[ws.mirrorPhase]) state.mirrorPhase = ws.mirrorPhase;
+      if (ws.mirrorScale === 'lin' || ws.mirrorScale === 'log') state.mirrorScale = ws.mirrorScale;
+      if (ws.show) state.show = { done: ws.show.done !== false, open: ws.show.open !== false };
+      if (ws.dq) state.dq = Object.assign(state.dq, ws.dq);
       if (Array.isArray(ws.tiles)) { state.tiles = ws.tiles.map(t => Object.assign({}, t, { open: false })); tileSeq = state.tiles.reduce((mx, t) => Math.max(mx, (t.id || 0) + 1), 1); }
     }
     $('#btnLoadJson').addEventListener('click', () => $('#loadJsonInput').click());
@@ -297,7 +305,7 @@
   function saveUi(){
     try { localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, period: state.period, gran: state.gran })); } catch (e) {}
     U.saveWorkbenchState({ view: state.view, period: state.period, gran: state.gran, sub: state.sub, breakdownDim: state.breakdownDim,
-      bandGran: state.bandGran, cad: state.cad, heat: state.heat, filtersOpen: state.filtersOpen, tiles: state.tiles.map(t => { const c = Object.assign({}, t); delete c.open; return c; }) });
+      bandGran: state.bandGran, cad: state.cad, heat: state.heat, filtersOpen: state.filtersOpen, mirrorPhase: state.mirrorPhase, mirrorScale: state.mirrorScale, show: state.show, dq: state.dq, tiles: state.tiles.map(t => { const c = Object.assign({}, t); delete c.open; return c; }) });
   }
 
   /* ═════════════════════════════════════════════════════════════════════════
@@ -512,6 +520,7 @@
      RAIL
   ═════════════════════════════════════════════════════════════════════════ */
   const VIEWS = [
+    { key: 'mirror',    label: 'Mirror — every phase',            group: null },
     { key: 'overview',  label: 'Overview',                        group: null },
     { key: 'materials', label: 'Materials in the segment',        group: null },
     { key: 'response',  label: 'Trigger → PR response',           group: 'MRP response' },
@@ -553,7 +562,7 @@
     if (!state.model) return;
     if (!state.matPass) recomputeSegment();
     const fn = {
-      overview: viewOverview, response: viewResponse, exposure: viewExposure, cadence: viewCadence,
+      mirror: viewMirror, overview: viewOverview, response: viewResponse, exposure: viewExposure, cadence: viewCadence,
       outcomes: viewOutcomes, internal: viewInternal, supplier: () => metricView(host, 'C', { breakdown: 'manufacturer', intro: supplierIntro() }),
       threepl: viewThreePL, e2e: () => metricView(host, 'E2E', { breakdown: 'mrpType' }),
       plan: viewPlan, sizing: viewSizing, overunder: viewOverUnder, checks: viewChecks,
@@ -624,12 +633,28 @@
     const cDone = new Array(bins.length).fill(0), cOpen = new Array(bins.length).fill(0);
     for (const v of doneV) cDone[E.binIndex(bins, v)]++;
     for (const v of openV) cOpen[E.binIndex(bins, v)]++;
-    const qa = E.quantiles(doneV, openV, [0.1, 0.5, 0.9]);
+    /* MIRROR-HIST (operator 2026-09-26): switch Completed and In flight on and
+       off to see either distribution on its own. Percentiles follow what is
+       shown; in-flight items count at their age so far, so any percentile that
+       includes them is a lower bound ("≥"). */
+    const sh = state.show;
+    const qa = sh.done && sh.open ? E.quantiles(doneV, openV, [0.1, 0.5, 0.9])
+             : sh.done ? E.quantiles(doneV, [], [0.1, 0.5, 0.9]) : E.quantiles([], openV, [0.1, 0.5, 0.9]);
     const qd = E.doneQuantiles(doneV, [0.1, 0.5, 0.9]);
     const target = state.settings.targets[key];
 
     if (opts.intro) div(host, 'view-intro', opts.intro);
-    const c1 = card(host, M.label, esc(M.def), `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    const chk = (k, l) => `<button class="btn-sm chk ${sh[k] ? 'on' : ''}" data-show="${k}" aria-pressed="${sh[k]}">${sh[k] ? '☑' : '☐'} ${l}</button>`;
+    const c1 = card(host, M.label, esc(M.def), chk('done', 'Completed') + chk('open', 'In flight') + `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    /* MIRROR-BOX / PERF-NO-SHIFT — every phase's card has the same header and
+       tile heights, so switching phase never moves the histogram */
+    c1.classList.add('fixed-head'); { const cs = c1.querySelector('.card-s'); if (cs) cs.title = M.def; }
+    c1.querySelectorAll('[data-show]').forEach(bt => bt.addEventListener('click', () => {
+      const k = bt.dataset.show, other = k === 'done' ? 'open' : 'done';
+      state.show[k] = !state.show[k];
+      if (!state.show[k] && !state.show[other]) state.show[other] = true;   // never both off
+      saveUi(); renderView();
+    }));
     focusCap(c1, sel, M.anchorLabel);
     /* stat strip */
     let within = '';
@@ -637,17 +662,17 @@
       const w = doneV.filter(v => v <= target).length;
       const missed = doneV.filter(v => v > target).length + openV.filter(v => v > target).length;
       const pend = openV.filter(v => v <= target).length;
-      within = statTile(`Within target (≤ ${fmt(target)} d)`, pct(w, w + missed), `${fmt(w)} in · ${fmt(missed)} over${pend ? ` · ${fmt(pend)} still open under target` : ''}`);
+      within = statTile(`Within target (≤ ${fmt(target)} d)`, pct(w, w + missed), `${fmt(w)} in · ${fmt(missed)} over${pend ? ` · ${fmt(pend)} in flight under target` : ''}`);
     } else {
-      within = statTile('KPI target', '<span class="muted">not set</span>', 'set one in ⚙ Settings & targets once the baseline is clear', 'clickable', 'data-settarget="1"');
+      within = statTile('KPI target', '<span class="muted">not set</span>', 'set it in ⚙ Settings', 'clickable', 'data-settarget="1"');
     }
-    div(c1, 'stats',
-      statTile('Closed', fmt(col.done.length), 'stage finished') +
-      statTile('Still open', fmt(col.open.length), 'counted at their age so far') +
+    div(c1, 'stats fixed',
+      statTile('Completed', fmt(col.done.length), 'stage finished') +
+      statTile('In flight', fmt(col.open.length), 'counted at their age so far') +
       statTile('Out of sequence', fmt(col.oos.length), col.oos.length ? 'end dated before start' : '', col.oos.length ? 'warn' : '') +
       statTile('P10', qv(qa[0.1]), 'fast tail') +
-      statTile('Median', qv(qa[0.5]), `closed only: ${qd[0.5] == null ? '—' : fmt(qd[0.5]) + ' d'}`) +
-      statTile('P90', qv(qa[0.9]), `closed only: ${qd[0.9] == null ? '—' : fmt(qd[0.9]) + ' d'}`) +
+      statTile('Median', qv(qa[0.5]), `completed only: ${qd[0.5] == null ? '—' : fmt(qd[0.5]) + ' d'}`) +
+      statTile('P90', qv(qa[0.9]), `completed only: ${qd[0.9] == null ? '—' : fmt(qd[0.9]) + ' d'}`) +
       within);
     const other = [];
     if (col.bad) other.push(`${fmt(col.bad)} with a bad or missing date (not measured)`);
@@ -655,58 +680,58 @@
     if (col.bypass) other.push(`${fmt(col.bypass)} skipped this leg (site receipt with no 3PL receipt)`);
     if (col.term) other.push(`${fmt(col.term)} ended earlier (cancelled)`);
     if (col.notdue) other.push(`${fmt(col.notdue)} not due yet`);
-    { const t = other.length ? 'Not in the chart: ' + other.join(' · ') + '.' : 'Every item in the segment and window is in the chart.'; cap(c1, `<span class="muted">${esc(t)}</span>`, t); }
+    { const shown = sh.done && sh.open ? 'completed + in flight' : sh.done ? 'completed only' : 'in flight only (age so far)';
+      const t = `Showing ${shown} · ` + (other.length ? 'not in the chart: ' + other.join(' · ') + '.' : 'every item in the segment and window is in the chart.');
+      cap(c1, `Showing <b>${esc(shown)}</b> <span class="muted">· ${esc(t.slice(t.indexOf('·') + 2))}</span>`, t); }
     div(c1, null, C.legend(M.signed ? [
-      { label: 'Early', color: C.PAL.early }, { label: 'On the day', color: C.PAL.ontime }, { label: 'Late', color: C.PAL.late },
-      { label: 'Still open — late by at least this (dimmed)', color: C.PAL.late, opacity: C.OPEN_OPACITY }
+      { label: 'Early', color: C.PAL.early, off: !sh.done }, { label: 'On the day', color: C.PAL.ontime, off: !sh.done }, { label: 'Late', color: C.PAL.late, off: !sh.done },
+      { label: 'In flight — late by at least this (hatched)', color: C.PAL.late, hatch: true, off: !sh.open }
     ] : [
-      { label: 'Closed', color: C.PAL.s1 },
-      { label: 'Still open — at least this long', color: C.PAL.s1, opacity: C.OPEN_OPACITY },
+      { label: 'Completed', color: C.PAL.s1, off: !sh.done },
+      { label: 'In flight — at least this long (hatched)', color: C.PAL.s1, hatch: true, off: !sh.open },
       ...(col.oos.length ? [{ label: 'Out of sequence (!)', color: C.PAL.oos }] : [])
     ]));
     const hHost = div(c1, 'chart');
     const binColors = M.signed ? bins.map(b => b.hi < 0 ? C.PAL.early : b.lo > 0 ? C.PAL.late : C.PAL.ontime) : null;
     const mk = (q, lab) => q ? Object.assign(markerPos(bins, q.v), { label: `${lab} ${q.lowerBound ? '≥ ' : ''}${fmt(q.v)} d` }) : { bin: null };
-    const draw = () => C.histogram(hHost, {
-      bins, oos: M.signed ? 0 : col.oos.length, unit: M.signed ? '' : 'days', binColors,
-      series: [
-        { key: 'done', label: 'closed', color: C.PAL.s1, counts: cDone },
-        { key: 'open', label: 'still open (at least)', color: C.PAL.s1, opacity: C.OPEN_OPACITY, counts: cOpen }
-      ],
+    const series = [];
+    if (sh.done) series.push({ key: 'done', label: 'completed', color: C.PAL.s1, counts: cDone });
+    if (sh.open) series.push({ key: 'open', label: 'in flight (age so far)', color: C.PAL.s1, hatch: true, counts: cOpen });
+    const shownItems = (bin) => (sh.done ? col.done.filter(c => E.binIndex(bins, stageV(c)) === bin) : [])
+      .concat(sh.open ? col.open.filter(c => E.binIndex(bins, stageV(c)) === bin) : []);
+    C.histogram(hHost, {
+      bins, oos: M.signed ? 0 : col.oos.length, unit: M.signed ? '' : 'days', binColors, series,
       markers: [mk(qa[0.1], 'P10'), mk(qa[0.5], 'median'), mk(qa[0.9], 'P90')],
       target: target != null ? Object.assign(markerPos(bins, target), { label: `target ${fmt(target)} d` }) : null,
       selected: state.drill && state.drill.metric === key && state.drill.bin != null ? { bin: state.drill.bin } : null,
       xTitle: M.signed ? 'days late against need-by (negative = early)' : `days · ${M.start} → ${M.end}`,
       aria: M.label + ' distribution',
       onBin: (bin) => {
-        let items;
-        if (bin === 'oos') items = col.oos;
-        else items = col.done.filter(c => E.binIndex(bins, stageV(c)) === bin).concat(col.open.filter(c => E.binIndex(bins, stageV(c)) === bin));
-        setDrill({ kind: 'chains', metric: key, bin, title: `${M.label} · ${bin === 'oos' ? 'out of sequence' : bins[bin].label + (M.signed ? '' : ' days')}`, items });
+        const items = bin === 'oos' ? col.oos : shownItems(bin);
+        const what = sh.done && sh.open ? '' : sh.done ? ' · completed' : ' · in flight';
+        setDrill({ kind: 'chains', metric: key, bin, title: `${M.label} · ${bin === 'oos' ? 'out of sequence' : bins[bin].label + (M.signed ? '' : ' days') + what}`, items });
       }
     });
-    draw();
     const tbl = div(c1, 'hidden');
-    tbl.innerHTML = binTable(bins, [['Closed', cDone], ['Still open', cOpen]], M.signed ? null : col.oos.length);
+    tbl.innerHTML = binTable(bins, [['Completed', cDone], ['In flight', cOpen]], M.signed ? null : col.oos.length);
     swapTable(c1, hHost, tbl, state.view + ':' + key);
     const stt = c1.querySelector('[data-settarget]'); if (stt) stt.addEventListener('click', openSettings);
     /* tail buttons */
     const tails = div(c1, 'tails');
     tails.innerHTML = `<span class="seg-lab">Drill</span>
-      <button class="btn-sm" data-tail="left">Fast tail · closed ≤ P10</button>
-      <button class="btn-sm" data-tail="right">Slow tail · ≥ P90 (incl. open)</button>
-      <button class="btn-sm" data-tail="open">Still open (${fmt(col.open.length)})</button>
+      <button class="btn-sm" data-tail="left">Fast tail · completed ≤ P10</button>
+      <button class="btn-sm" data-tail="right">Slow tail · ≥ P90 (incl. in flight)</button>
+      <button class="btn-sm" data-tail="open">In flight (${fmt(col.open.length)})</button>
       ${col.oos.length ? `<button class="btn-sm" data-tail="oos">Out of sequence (${fmt(col.oos.length)})</button>` : ''}`;
     tails.querySelectorAll('[data-tail]').forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.tail;
       let items, title;
-      if (k === 'left') { const p = qd[0.1]; items = col.done.filter(c => stageV(c) <= p); title = `fast tail · closed ≤ ${fmt(p)} d`; }
-      else if (k === 'right') { const p = qd[0.9] != null ? qd[0.9] : (qa[0.9] ? qa[0.9].v : 0); items = col.done.filter(c => stageV(c) >= p).concat(col.open.filter(c => stageV(c) >= p)); title = `slow tail · ≥ ${fmt(p)} d incl. still open`; }
-      else if (k === 'open') { items = col.open.slice(); title = 'still open'; }
+      if (k === 'left') { const p = qd[0.1]; items = col.done.filter(c => stageV(c) <= p); title = `fast tail · completed ≤ ${fmt(p)} d`; }
+      else if (k === 'right') { const p = qd[0.9] != null ? qd[0.9] : (qa[0.9] ? qa[0.9].v : 0); items = col.done.filter(c => stageV(c) >= p).concat(col.open.filter(c => stageV(c) >= p)); title = `slow tail · ≥ ${fmt(p)} d incl. in flight`; }
+      else if (k === 'open') { items = col.open.slice(); title = 'in flight'; }
       else { items = col.oos; title = 'out of sequence'; }
       setDrill({ kind: 'chains', metric: key, title: `${M.label} · ${title}`, items });
     }));
-
     /* PERF-BANDS — month-on-month (or quarter) band: median + mean + P25–P75 + P10–P90 */
     const groups = E.cohorts(base, M, state.settings.provisionalPct, state.bandGran);
     const c2 = card(host, `${state.bandGran === 'quarter' ? 'Quarter' : 'Month'} on ${state.bandGran} · ${M.anchorLabel} …`,
@@ -786,29 +811,175 @@
     state.drill = d;
     renderView();
   }
+  /* MIRROR-DRILL (operator 2026-09-26): the drill list is where the work
+     starts — "show me the materials that are overdue, below Min, in continuous
+     consumption…". Screener-style quick filters (ANDed, kept across drills),
+     a PR / PO lines ⇄ Materials switch (the PO is the tracking document), and
+     an Excel export of exactly what is showing, with an About sheet. */
+  const STOCK_LOW = new Set(['below Min', 'below SS', 'stocked out']);
+  function dqActive(){ const q = state.dq; return q.overdue || q.below || q.out || q.cont || q.trig || q.mrp || q.mfr || (q.minDays !== '' && q.minDays != null); }
+  function drillRows(d){
+    const spec = DRILL_SPECS[d.kind];
+    const all = d.items.map(it => spec.row(it, d));
+    const hasMat = all.length > 0 && all[0].material !== undefined;
+    const isChain = d.kind === 'chains';
+    const q = state.dq, minD = q.minDays === '' || q.minDays == null ? null : +q.minDays;
+    const pass = (r) => {
+      if (!hasMat) return true;
+      const i = mInfo(r.material);
+      if (q.below && !(STOCK_LOW.has(i.stockStatus) || (i.soh != null && i.soh <= 0))) return false;
+      if (q.out && !(i.soh != null && i.soh <= 0)) return false;
+      if (q.cont && !((i.consMonths12 || 0) >= 6)) return false;
+      if (q.mrp && (i.mrpType || '') !== q.mrp) return false;
+      if (q.mfr && (i.manufacturer || '') !== q.mfr) return false;
+      if (isChain) {
+        if (q.overdue && !(r.overdue > 0)) return false;
+        if (q.trig && r.trig !== q.trig) return false;
+        if (minD != null && !(r.v != null && r.v >= minD)) return false;
+      }
+      return true;
+    };
+    return { spec, all, rows: all.filter(pass), hasMat, isChain };
+  }
+  function materialRows(rows, isChain){
+    const by = new Map();
+    for (const r of rows) {
+      let e = by.get(r.material);
+      if (!e) {
+        const i = mInfo(r.material);
+        e = { material: r.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, stock: i.stockStatus, soh: i.soh, min: i.min, max: i.max, ss: i.ss,
+              cons12: i.consMonths12, consYr: i.consPerYr, cost: i.map, lines: 0, inflight: 0, oldest: null, longest: null, overdueN: 0, maxOverdue: null, prs: [], pos: [] };
+        by.set(r.material, e);
+      }
+      e.lines++;
+      if (isChain) {
+        if (r.st === 'open') { e.inflight++; if (r.v != null && (e.oldest == null || r.v > e.oldest)) e.oldest = r.v; }
+        else if (r.st === 'done' && r.v != null && (e.longest == null || r.v > e.longest)) e.longest = r.v;
+        if (r.overdue > 0) { e.overdueN++; if (e.maxOverdue == null || r.overdue > e.maxOverdue) e.maxOverdue = r.overdue; }
+        if (r.pr && !e.prs.includes(r.pr)) e.prs.push(r.pr);
+        if (r.po && !e.pos.includes(r.po)) e.pos.push(r.po);
+      }
+    }
+    return [...by.values()].map(e => Object.assign(e, { prs: e.prs.join(', '), pos: e.pos.join(', ') }));
+  }
+  const MAT_COLS = (isChain) => [
+    { key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }, { key: 'mfr', label: 'Manufacturer' }, { key: 'mrp', label: 'MRP' },
+    { key: 'stock', label: 'Stock now' }, { key: 'soh', label: 'On hand', num: true, f: v => fmt(v, 1) }, { key: 'min', label: 'Min', num: true, f: v => fmt(v, 1) }, { key: 'max', label: 'Max', num: true, f: v => fmt(v, 1) },
+    { key: 'lines', label: isChain ? 'Lines' : 'Items', num: true },
+    ...(isChain ? [{ key: 'inflight', label: 'In flight', num: true }, { key: 'oldest', label: 'Oldest in flight (d)', num: true, f: v => v == null ? '—' : '≥ ' + fmt(v) },
+      { key: 'overdueN', label: 'Overdue lines', num: true }, { key: 'pos', label: 'POs', cls: 'wrap' }] : [])
+  ];
+
   function renderDrill(){
     if (!drillDock) drillDock = U.dockPanel('wbDrill', { onClose: () => { state.drill = null; renderView(); },
       onResize: (h) => document.documentElement.style.setProperty('--dock-pad', h + 'px') });
     if (!state.drill) { drillDock.close(); return; }
     const d = state.drill;
-    drillDock.open(`Drill · ${esc(d.title)}<small>${fmt(d.items.length)} item${d.items.length === 1 ? '' : 's'} — sort any column, export to CSV</small>`);
+    const R = drillRows(d);
+    const q = state.dq, mode = R.hasMat ? q.mode : 'lines';
+    const mats = new Set(R.rows.map(r => r.material)).size;
+    drillDock.open(`Drill · ${esc(d.title)}<small>${fmt(d.items.length)} item${d.items.length === 1 ? '' : 's'}${R.hasMat ? ` · ${fmt(new Set(R.all.map(r => r.material)).size)} materials` : ''}</small>`);
     document.documentElement.style.setProperty('--dock-pad', drillDock.el.offsetHeight + 'px');
     const t = drillDock.body; t.className = 'dock-b'; t.innerHTML = '';
+    const bar = div(t, 'dq-bar');
+    if (R.hasMat) {
+      const opts = (vals, cur) => { const s2 = new Map(); vals.forEach(v => { if (v) s2.set(v, (s2.get(v) || 0) + 1); }); if (cur && !s2.has(cur)) s2.set(cur, 0);
+        return [...s2.entries()].sort((x, y) => y[1] - x[1] || String(x[0]).localeCompare(String(y[0]))).map(([v, n]) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(v)} (${fmt(n)})</option>`).join(''); };
+      const chip = (k, l, tip) => `<button class="btn-sm chk ${q[k] ? 'on' : ''}" data-dqk="${k}" title="${esc(tip)}">${q[k] ? '☑' : '☐'} ${esc(l)}</button>`;
+      bar.innerHTML = `<span class="seg-lab">Filter</span>
+        ${R.isChain ? chip('overdue', 'Overdue', 'past the PR\'s need-by date and not received — or received after it') : ''}
+        ${chip('below', 'Below Min / SS now', 'today\'s stock is below Min (V1) or SS (PD), or at zero')}
+        ${chip('out', 'Stocked out now', 'today\'s stock is zero')}
+        ${chip('cont', 'Continuous use', 'issued in at least 6 of the last 12 months')}
+        ${R.isChain ? `<select data-dqs="trig" aria-label="Created by"><option value="">MRP + manual</option>${['MRP', 'Manual', 'Unknown', 'Other'].map(v => `<option value="${v}" ${q.trig === v ? 'selected' : ''}>${v} only</option>`).join('')}</select>` : ''}
+        <select data-dqs="mrp" aria-label="MRP type"><option value="">Any MRP type</option>${opts(R.all.map(r => mInfo(r.material).mrpType), q.mrp)}</select>
+        <select data-dqs="mfr" aria-label="Supplier (manufacturer)"><option value="">Any supplier</option>${opts(R.all.map(r => mInfo(r.material).manufacturer), q.mfr)}</select>
+        ${R.isChain ? `<label class="dq-num">Days ≥ <input type="number" min="0" step="1" data-dqn="minDays" value="${esc(q.minDays == null ? '' : q.minDays)}" placeholder="any"/></label>` : ''}
+        <button class="btn-sm ghost" data-dqclear ${dqActive() ? '' : 'disabled'}>Clear</button>
+        <span class="dq-count"><b>${fmt(R.rows.length)}</b> of ${fmt(R.all.length)} ${R.isChain ? 'lines' : 'items'} · <b>${fmt(mats)}</b> material${mats === 1 ? '' : 's'}</span>
+        <span class="dq-mode"><button class="btn-sm ${mode === 'lines' ? 'on' : ''}" data-dqm="lines">${R.isChain ? 'PR / PO lines' : 'Items'}</button><button class="btn-sm ${mode === 'mats' ? 'on' : ''}" data-dqm="mats">Materials</button></span>
+        <button class="btn-sm" data-xlsx>⤓ Excel</button>`;
+      bar.querySelectorAll('[data-dqk]').forEach(b => b.addEventListener('click', () => { state.dq[b.dataset.dqk] = !state.dq[b.dataset.dqk]; saveUi(); renderDrill(); }));
+      bar.querySelectorAll('[data-dqs]').forEach(sl => sl.addEventListener('change', () => { state.dq[sl.dataset.dqs] = sl.value; saveUi(); renderDrill(); }));
+      bar.querySelectorAll('[data-dqn]').forEach(inp => inp.addEventListener('change', () => { state.dq[inp.dataset.dqn] = inp.value === '' ? '' : Math.max(0, +inp.value || 0); saveUi(); renderDrill(); }));
+      bar.querySelectorAll('[data-dqm]').forEach(b => b.addEventListener('click', () => { state.dq.mode = b.dataset.dqm; saveUi(); renderDrill(); }));
+      bar.querySelector('[data-dqclear]').addEventListener('click', () => { Object.assign(state.dq, { overdue: false, below: false, out: false, cont: false, trig: '', mrp: '', mfr: '', minDays: '' }); saveUi(); renderDrill(); });
+    } else {
+      bar.innerHTML = `<span class="dq-count"><b>${fmt(R.rows.length)}</b> items</span><button class="btn-sm" data-xlsx>⤓ Excel</button>`;
+    }
+    bar.querySelector('[data-xlsx]').addEventListener('click', () => exportDrillXlsx(d, R, mode));
     const tw = div(t, 'tblwrap');
-    renderDrillTable(tw, d);
+    if (mode === 'mats') {
+      const mrows = materialRows(R.rows, R.isChain);
+      renderTable(tw, { rows: mrows, cols: MAT_COLS(R.isChain), sort: R.isChain ? { key: 'oldest', dir: -1 } : { key: 'lines', dir: -1 }, limit: 500, csv: 'drill-materials',
+        onRow: (r, sorted) => U.openMaterial(r.material, sorted.map(x => x.material), d.title),
+        footNote: 'Click a material to open its deep-dive — Prev / Next then steps through this list in the order shown.' });
+    } else {
+      renderTable(tw, { rows: R.rows, cols: R.spec.cols(d), sort: R.spec.sort || null, limit: 500, csv: 'drill-' + d.kind,
+        onRow: R.hasMat ? (r, sorted) => U.openMaterial(r.material, sorted.map(x => x.material), d.title) : null,
+        footNote: R.hasMat ? 'Click a row to open that material\'s deep-dive — Prev / Next then steps through this list in the order shown.' : '' });
+    }
+  }
+
+  /* MIRROR-XLSX — the list as it is filtered right now → an .xlsx with the
+     lines, one row per material, and an About sheet (dataset, as-of date,
+     view, segment, window, filters and the definitions used). SheetJS is
+     loaded on first use from its own CDN (same build the Intake uses). */
+  function loadXlsx(){
+    if (window.XLSX) return Promise.resolve();
+    return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('could not load the Excel library')); document.head.appendChild(sc); });
+  }
+  function xDate(isoStr){ if (!isoStr) return null; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoStr); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+  const XL_LINES = [
+    ['Material', r => r.material], ['Description', r => r._i.description], ['Manufacturer', r => r._i.manufacturer], ['MRP type', r => r._i.mrpType],
+    ['Min', r => r._i.min], ['Max', r => r._i.max], ['Safety stock', r => r._i.ss], ['Stock on hand (as of)', r => r._i.soh], ['Stock status (as of)', r => r._i.stockStatus],
+    ['Months with an issue (last 12)', r => r._i.consMonths12], ['Unit cost', r => r._i.map],
+    ['PR', r => r.pr], ['PR item', r => r.prItem], ['Created by', r => r.trig], ['PR date', r => xDate(r.prD)], ['PR qty', r => r.qty], ['Released', r => xDate(r.rel)],
+    ['PO', r => r.po], ['PO date', r => xDate(r.poD)], ['At 3PL (107)', r => xDate(r.g107)], ['At site (109)', r => xDate(r.g109)], ['Need-by', r => xDate(r.need)],
+    ['Phase', r => r.phase], ['Days in phase', r => r.v], ['Status', r => r.st === 'open' ? 'in flight (days = age so far)' : r.st === 'oos' ? 'out of sequence' : r.st === 'done' ? 'completed' : r.st],
+    ['Days overdue vs need-by', r => r.overdue > 0 ? r.overdue : null], ['Path', r => r.path]
+  ];
+  async function exportDrillXlsx(d, R, mode){
+    try { await loadXlsx(); } catch (e) { toast(e.message, 'crit'); return; }
+    const wb = XLSX.utils.book_new();
+    const put = (name, aoa, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: 'yyyy-mm-dd' }); if (widths) ws['!cols'] = widths.map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
+    if (R.isChain) {
+      const M = E.METRICS[d.metric];
+      const rows = R.rows.map(r => Object.assign({ _i: mInfo(r.material), phase: M ? M.label : '' }, r));
+      put('Lines', [XL_LINES.map(c => c[0])].concat(rows.map(r => XL_LINES.map(c => { const v = c[1](r); return v === undefined ? null : v; }))), XL_LINES.map(c => Math.max(10, Math.min(28, c[0].length + 2))));
+    } else {
+      const cols = R.spec.cols(d);
+      put('List', [cols.map(c => c.label)].concat(R.rows.map(r => cols.map(c => { const v = r[c.key]; return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? xDate(v) : (v === undefined ? null : v); }))));
+    }
+    if (R.hasMat) {
+      const mc = [['Material', 'material'], ['Description', 'desc'], ['Manufacturer', 'mfr'], ['MRP type', 'mrp'], ['Stock status (as of)', 'stock'], ['Stock on hand (as of)', 'soh'],
+        ['Min', 'min'], ['Max', 'max'], ['Safety stock', 'ss'], ['Months with an issue (last 12)', 'cons12'], ['Consumed / yr', 'consYr'], ['Unit cost', 'cost'], [R.isChain ? 'Lines in list' : 'Items in list', 'lines']]
+        .concat(R.isChain ? [['In flight', 'inflight'], ['Oldest in flight (days)', 'oldest'], ['Longest completed (days)', 'longest'], ['Overdue lines', 'overdueN'], ['Most days overdue', 'maxOverdue'], ['PRs', 'prs'], ['POs', 'pos']] : []);
+      put('Materials', [mc.map(c => c[0])].concat(materialRows(R.rows, R.isChain).map(e => mc.map(c => e[c[1]] == null ? null : e[c[1]]))));
+    }
+    const q = state.dq, f = [];
+    if (q.overdue) f.push('overdue vs need-by'); if (q.below) f.push('below Min / SS now'); if (q.out) f.push('stocked out now'); if (q.cont) f.push('continuous use (issued in ≥ 6 of the last 12 months)');
+    if (q.trig) f.push('created by ' + q.trig); if (q.mrp) f.push('MRP type ' + q.mrp); if (q.mfr) f.push('supplier ' + q.mfr); if (q.minDays !== '' && q.minDays != null) f.push('days ≥ ' + q.minDays);
+    const m = state.model;
+    put('About', [
+      ['Calibre Mirror — drill export'], [],
+      ['Dataset', dsName()], ['Data as of', m.asOfIso + ' (' + m.asOfSource + ')'], ['View', (VIEWS.find(v => v.key === state.view) || {}).label || state.view], ['List', d.title],
+      ['Segment', state.tiles.length ? state.tiles.map(t => DIM[t.dim].label + ': ' + tileSummary(t)).join(' · ') : 'all materials'], ['Window', periodLabel()],
+      ['Quick filters', f.length ? f.join(' · ') : 'none'], ['Rows', R.rows.length + ' of ' + R.all.length], ['Exported', new Date().toLocaleString()], [],
+      ['Definitions'],
+      ['In flight', 'Not finished yet — days are its age so far as of the data date (a lower bound).'],
+      ['Overdue', 'Past the PR\'s need-by (Delivery Date) with no site receipt as of the data date — or received after it (days late).'],
+      ['Stock / Min / Max / SS', 'Today\'s Inventory Master values (as of the data date); earlier changes can\'t be seen.'],
+      ['Continuous use', 'Issued (261 / 201 / 221 / 291 / 551) in at least 6 of the 12 months to the data date.'],
+      ['107 / 109', '107 = arrived at the 3PL (blocked stock); 109 = received at site.']
+    ], [26, 90]);
+    const safe = (x) => String(x).replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/_+/g, '_').slice(0, 80);
+    XLSX.writeFile(wb, `${safe(dsName())}-${safe(d.title)}.xlsx`, { compression: true });
   }
   document.addEventListener('keydown', (e) => {   // capture phase: runs before the filter / settings Esc handlers
     if (e.key !== 'Escape' || !state.drill || state.filtersOpen || !$('#setModal').classList.contains('hidden')) return;
     state.drill = null; renderView();
   }, true);
-  function renderDrillTable(t, d){
-    const spec = DRILL_SPECS[d.kind];
-    const rows = d.items.map(it => spec.row(it, d));
-    const hasMat = rows.length && rows[0].material !== undefined;
-    renderTable(t, { rows, cols: spec.cols(d), sort: spec.sort || null, limit: 500, csv: 'drill-' + d.kind,
-      onRow: hasMat ? (r, sorted) => U.openMaterial(r.material, sorted.map(x => x.material), d.title) : null,
-      footNote: hasMat ? 'Click a row to open that material\'s deep-dive — Prev / Next then steps through this list in the order shown.' : '' });
-  }
   const mInfo = (m) => state.model.mat.get(m) || {};
   const DRILL_SPECS = {
     chains: {
@@ -816,18 +987,22 @@
         const M = E.METRICS[d.metric];
         return [
           { key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }, { key: 'mfr', label: 'Manufacturer' },
-          { key: 'mrp', label: 'MRP' }, { key: 'trig', label: 'Trigger' }, { key: 'pr', label: 'PR' }, { key: 'prD', label: 'PR date' },
-          { key: 'rel', label: 'Released' }, { key: 'po', label: 'PO' }, { key: 'poD', label: 'PO date' }, { key: 'g107', label: 'At 3PL' },
+          { key: 'mrp', label: 'MRP' }, { key: 'stock', label: 'Stock now' }, { key: 'trig', label: 'Trigger' }, { key: 'pr', label: 'PR' }, { key: 'prD', label: 'PR date' },
+          { key: 'qty', label: 'PR qty', num: true }, { key: 'rel', label: 'Released' }, { key: 'po', label: 'PO' }, { key: 'poD', label: 'PO date' }, { key: 'g107', label: 'At 3PL' },
           { key: 'g109', label: 'At site' }, { key: 'need', label: 'Need-by' },
           { key: 'v', label: M ? M.label + ' (d)' : 'Days', num: true, f: (v, r) => (r.st === 'open' ? '≥ ' : '') + fmt(v) },
-          { key: 'st', label: 'Status', f: (v) => v === 'open' ? '<span class="st-open">still open</span>' : v === 'oos' ? '<span class="st-oos">! out of sequence</span>' : esc(v), html: true },
+          { key: 'st', label: 'Status', f: (v) => v === 'open' ? '<span class="st-open">in flight</span>' : v === 'oos' ? '<span class="st-oos">! out of sequence</span>' : v === 'done' ? 'completed' : esc(v), html: true },
+          { key: 'overdue', label: 'Overdue (d)', num: true, f: v => v > 0 ? fmt(v) : '' },
           { key: 'path', label: 'Path', cls: 'wrap' }
         ];
       },
       row: (c, d) => {
         const i = mInfo(c.material); const M = E.METRICS[d.metric]; const x = M ? M.stage(c) : { v: null, s: '' };
-        return { material: c.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, trig: c.trig, pr: c.pr, prD: iso(c.prD), rel: iso(c.relD),
-                 po: c.po, poD: iso(c.poD), g107: iso(c.g107), g109: iso(c.g109), need: iso(c.needD), v: x.v, st: (x.s === 'done' && !M.signed && x.v < 0) ? 'oos' : x.s, path: c.path };
+        const asOf = state.model.asOf;
+        const overdue = c.needD == null ? null : (c.g109 != null ? c.g109 - c.needD : asOf - c.needD);   // days past need-by (received late, or still not received)
+        return { material: c.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, stock: i.stockStatus, trig: c.trig, pr: c.pr, prItem: c.prItem, prD: iso(c.prD), qty: c.qty, rel: iso(c.relD),
+                 po: c.po, poD: iso(c.poD), g107: iso(c.g107), g109: iso(c.g109), need: iso(c.needD), v: x.v, st: (x.s === 'done' && !M.signed && x.v < 0) ? 'oos' : x.s,
+                 overdue: overdue > 0 ? overdue : null, path: c.path };
       },
       sort: { key: 'v', dir: -1 }
     },
@@ -903,6 +1078,41 @@
   ═════════════════════════════════════════════════════════════════════════ */
   function supplierIntro(){
     return `<div class="note-box"><b>Manufacturer stands in for vendor</b> (Inventory Master “Mfg Name”) until supplier / PO data is added — one manufacturer can be supplied by several distributors. The leg ends when goods arrive at the 3PL (first 107).</div>`;
+  }
+
+  /* ── MIRROR — every phase at a glance (operator 2026-09-26) ─────────────
+     "The mirror gives you the histogram — overall supply, each of the phases.
+     Start with the box and whisker, click it, it opens the histogram." One
+     box plot per phase on one day scale; click a row and that phase's
+     histogram (completed + in flight, each switchable), month-on-month band
+     and breakdown show underneath; click a bar for the materials and POs. */
+  const MIRROR_ROWS = [
+    { key: 'A', sub: 'PR created → released' }, { key: 'B', sub: 'released → PO raised' },
+    { key: 'C', sub: 'PO raised → at 3PL (107)' }, { key: 'D', sub: 'at 3PL (107) → at site (109)' },
+    { key: 'AB', sub: 'internal total · PR → PO', group: true }, { key: 'E2E', sub: 'whole chain · PR → site' }
+  ];
+  const MIRROR_BREAK = { A: 'purchasingGroup', B: 'purchasingGroup', AB: 'purchasingGroup', C: 'manufacturer', D: 'manufacturer', E2E: 'mrpType' };
+  function viewMirror(host){
+    div(host, 'view-intro', `<h2>The mirror — how each phase of supply is performing</h2><p>One box per phase, all on the same day scale: the solid box is what <b>completed</b> (middle half, median line, whiskers P10–P90, dots = fastest and slowest); the <b>hatched</b> box under it is what is still <b>in flight</b>, at its age so far. Click a phase to open its histogram below — switch Completed and In flight on or off — then click any bar for the materials, PRs and POs behind it, filter them, and export to Excel. The segment and window in Filters apply.</p>`);
+    const lo = (a) => { let m = Infinity; for (const v of a) if (v < m) m = v; return a.length ? m : null; };
+    const hi = (a) => { let m = -Infinity; for (const v of a) if (v > m) m = v; return a.length ? m : null; };
+    const QS = [0.1, 0.25, 0.5, 0.75, 0.9];
+    const rows = MIRROR_ROWS.map(r => {
+      const M = E.METRICS[r.key], col = E.collect(chainsFor(M), M);
+      const dv = col.done.map(c => M.stage(c).v), ov = col.open.map(c => M.stage(c).v);
+      return { key: r.key, label: M.label, sub: r.sub, group: r.group,
+        done: { n: dv.length, q: E.doneQuantiles(dv, QS), min: lo(dv), max: hi(dv) },
+        open: { n: ov.length, q: E.doneQuantiles(ov, QS), max: hi(ov) } };
+    });
+    const ph = E.METRICS[state.mirrorPhase];
+    const lg = state.mirrorScale !== 'lin';
+    const c = card(host, 'Every phase at a glance', 'Box = middle half (P25–P75) · line = median · whiskers = P10–P90 · hollow dots = fastest / slowest (in flight: oldest) · ▸ = beyond the scale. Same day scale on every row.',
+      `<span class="seg-lab">Scale</span><button class="btn-sm ${lg ? 'on' : ''}" data-msc="log">Stretched</button><button class="btn-sm ${lg ? '' : 'on'}" data-msc="lin">Even days</button>`);
+    c.querySelectorAll('[data-msc]').forEach(b => b.addEventListener('click', () => { state.mirrorScale = b.dataset.msc; saveUi(); renderView(); }));
+    cap(c, `Showing <b>${esc(ph.label)}</b> below <span class="muted">· click any phase to switch · ${lg ? 'stretched scale: short phases spread out, long tails compressed (log)' : 'even-day scale: to the slowest P90'}</span>`);
+    C.phaseBoxes(div(c, 'chart'), { rows, selected: state.mirrorPhase, log: lg, xTitle: lg ? 'days (stretched scale — log)' : 'days', aria: 'Every phase of supply — completed and in flight',
+      onClick: (k) => { if (!E.METRICS[k] || k === state.mirrorPhase) return; state.mirrorPhase = k; state.cohortSel = null; saveUi(); renderView(); } });
+    metricView(host, state.mirrorPhase, { breakdown: MIRROR_BREAK[state.mirrorPhase] || 'manufacturer' });
   }
 
   /* ── overview ─────────────────────────────────────────────────────────── */
@@ -1002,7 +1212,7 @@
       'crossed before the window': 'already below the line on the first day of MB51 — the crossing date can\'t be known'
     };
     const c2 = card(host, 'What was happening at each crossing', 'Click a row to list those crossings.');
-    const t2 = div(c2, 'tblwrap');
+    const t2 = div(c2, 'tblwrap fixed');   // PERF-NO-SHIFT — its wrapped "Meaning" rows re-flow when the counts change
     renderTable(t2, { rows: order.map(k => ({ k, n: counts[k] || 0, share: eps.length ? (counts[k] || 0) / eps.length : 0, what: expl[k] })),
       cols: [{ key: 'k', label: 'At the crossing' }, { key: 'n', label: 'Crossings', num: true }, { key: 'share', label: 'Share', num: true, html: true, f: v => `<span class="bar" style="width:${Math.round(v * 120)}px"></span>${Math.round(v * 100)}%` }, { key: 'what', label: 'Meaning', cls: 'wrap' }],
       onRow: (r) => setDrill({ kind: 'episodes', title: 'Crossings · ' + r.k, items: eps.filter(e => e.response === r.k) }), csv: 'crossing-responses' });

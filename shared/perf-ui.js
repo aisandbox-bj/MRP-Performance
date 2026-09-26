@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   shared/perf-ui.js · Calibre MRP Performance v0.2.0-dev
+   shared/perf-ui.js · Calibre Mirror v0.2.0-dev
    Small UI helpers shared by the Workbench and the Material deep-dive:
    sortable table with CSV export, toast, formatting, and the cross-page
    navigation hand-off (drill list → deep-dive Prev / Next → back to the

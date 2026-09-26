@@ -8,7 +8,9 @@
   'use strict';
 
   /* PERF-STORE-NS (MRP Performance v0.1.0-dev, 2026-09-25) — own namespace.
-     Tune (Inventory_Optimization) and MRP-Performance are both served from
+     (Namespace kept as mrpPerf after the 2026-09-26 rename to Calibre Mirror so
+     saved datasets and settings carry over.) Tune (Inventory_Optimization) and
+     Calibre Mirror (repo Calibre-Mirror, formerly MRP-Performance) are both served from
      aisandbox-bj.github.io, and browser storage is per-ORIGIN, not per path.
      Tune uses 'invOpt' / 'invOptApp'; re-using them here would let this
      app read, overwrite or wipe (Clear session data) Tune's saved intakes.

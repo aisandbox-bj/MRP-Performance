@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
-     Calibre MRP Performance · User manual · v0.1.0-dev
-     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     Calibre Mirror · User manual · v0.3.0-dev
+     Repo : https://github.com/aisandbox-bj/Calibre-Mirror
 ═════════════════════════════════════════════════════════════════════════-->
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MRP Performance · Manual</title>
-<meta name="app-version" content="0.2.0-dev" />
+<title>Calibre Mirror · Manual</title>
+<meta name="app-version" content="0.3.0-dev" />
 <link rel="stylesheet" href="shared/brand-tokens.css" />
 <link rel="stylesheet" href="shared/perf.css" />
 <style>
@@ -40,8 +40,8 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
   <div class="brand">
     <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
     Calibre
-    <span class="brand-app">MRP Performance</span>
-    <a class="sub" href="record-of-change.html">v0.2.0-dev · Manual</a>
+    <span class="brand-app">Mirror</span>
+    <a class="sub" href="record-of-change.html">v0.3.0-dev · Manual</a>
   </div>
   <div class="links">
     <a href="index.html">Dashboard</a>
@@ -60,6 +60,7 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
     <a href="#what">1 · What it's for</a>
     <a href="#data">2 · Getting data in</a>
     <a href="#segments">3 · Segments &amp; the time window</a>
+    <a href="#mirror">3b · The mirror — start here</a>
     <a href="#reading">4 · Reading a distribution</a>
     <a href="#views">5 · The views</a>
     <a href="#deepdive">5b · Material deep-dive</a>
@@ -68,7 +69,7 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
     <a href="#storage">8 · Where your data lives</a>
   </nav>
   <article>
-    <h1>MRP Performance</h1>
+    <h1>Calibre Mirror</h1>
     <p class="lead">How the whole replenishment process behaves — MRP response, the internal, supplier and 3PL legs, order sizing and stock outcomes — across every material in your SAP extracts, shown as distributions you can drill into.</p>
 
     <h2 id="what">1 · What it's for</h2>
@@ -100,9 +101,18 @@ table.m td:first-child{ color:var(--text-pri); white-space:nowrap; }
     </ul>
     <p>Examples: <i>PR → PO on the top-moving quarter of parts</i> = Movement → Q4, then Internal. <i>3PL performance on items over $10,000</i> = Unit cost → Range, min 10000, then 3PL. <i>One supplier's lead time</i> = Manufacturer → pick it, then Supplier. Clicking a row in any breakdown table adds that value as a tile.</p>
 
+    <h2 id="mirror">3b · The mirror — start here</h2>
+    <p>The Workbench opens on <b>Mirror — every phase</b>: one box-and-whisker per phase of supply — PR approval, buyer (release → PO), supplier (PO → 3PL), 3PL (3PL → site), then the PR → PO and end-to-end totals — all on the same day scale.</p>
+    <ul>
+      <li><b>Solid box</b> = what <b>completed</b>: the box is the middle half (P25–P75), the white line the median, the whiskers P10–P90, the hollow dots the fastest and slowest. <b>Hatched box</b> under it = what is still <b>in flight</b>, at its age so far (dot = the oldest). ▸ marks a value beyond the scale.</li>
+      <li><b>Scale:</b> <i>Stretched</i> (default) spreads the short phases out and compresses long tails, so a same-day approval and a 400-day supplier tail are both readable; <i>Even days</i> is a plain day scale.</li>
+      <li><b>Click a phase</b> — its histogram, month-on-month band and breakdown open underneath. <b>☑ Completed / ☑ In flight</b> switch each part on or off: turn Completed off to see how the in-flight items are spread.</li>
+      <li><b>Click a bar</b> for the list behind it. <b>Filter</b> it — Overdue (past the PR's need-by, or received after it) · Below Min / SS now · Stocked out now · Continuous use (issued in at least 6 of the last 12 months) · MRP or manual · MRP type · supplier · Days ≥ N. Filters combine and stay set as you click other bars. <b>PR / PO lines</b> shows each PR with its PO and key dates; <b>Materials</b> shows one row per material with its POs. <b>⤓ Excel</b> saves exactly what is showing: a Lines sheet (material, description, PR, PO, key dates, PR quantity, Min / Max / stock, days, status, days overdue), a Materials sheet and an About sheet recording the dataset, date, view, segment and filters.</li>
+    </ul>
+
     <h2 id="reading">4 · Reading a distribution</h2>
     <ul>
-      <li><b>Closed</b> — the leg finished. <b>Still open</b> — it hasn't yet; drawn lighter, at its age so far (“at least this long”). They are never dropped: in recent months the slow ones are exactly the ones still open.</li>
+      <li><b>Completed</b> — the leg finished. <b>In flight</b> — it hasn't yet; drawn hatched, at its age so far (“at least this long”). They are never dropped: in recent months the slow ones are exactly the ones still open.</li>
       <li><b>Out of sequence</b> (amber, far left, “!”) — the end of the leg is dated before its start, e.g. a PO dated before its PR. Listed, never rounded to zero.</li>
       <li><b>P10 / median / P90</b> count still-open items. A <b>“≥”</b> means open items sit at or below that point, so the true value is at least that. The closed-only figure is shown underneath.</li>
       <li><b>By month</b> — one box per month: box = middle half, whisker = P10–P90, white tick = median of closed items; the caret marks the P90 once open items are counted. The % under each month is how many have closed; months under 90% are dimmed (provisional). Click a month to focus the view on it.</li>

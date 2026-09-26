@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   shared/perf.css · Calibre MRP Performance v0.1.0-dev
+   shared/perf.css · Calibre Mirror v0.1.0-dev
    App-level additions on top of the borrowed Calibre brand-tokens.css:
    nav app label, chart text + tooltip, stat strips, drill tables.
 ═══════════════════════════════════════════════════════════════════════════ */
 
 :root{
-  --calibre-perf: #12A7B0;          /* MRP Performance — chart slot 1 cyan */
+  --calibre-perf: #12A7B0;          /* Calibre Mirror — chart slot 1 cyan */
   --chart-surface: #091F2D;         /* the surface the chart palette was validated on */
 }
 
@@ -53,6 +53,7 @@
 .pc-lg{ display:inline-flex; align-items:center; gap:6px; }
 .pc-sw{ width:12px; height:12px; border-radius:2px; display:inline-block; }
 .pc-sw.line{ height:2px; width:16px; }
+.pc-lg.off{ opacity:.35; text-decoration:line-through; }   /* MIRROR-HIST — a series switched off stays in the legend (no layout change) */
 
 /* ─── cards / stat strip ─────────────────────────────────────────────────── */
 .card{

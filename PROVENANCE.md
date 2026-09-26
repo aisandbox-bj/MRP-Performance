@@ -1,6 +1,6 @@
 # PROVENANCE — files borrowed from Calibre Tune
 
-MRP Performance reuses Calibre Tune's intake and data-engine modules so its numbers tie to Tune and Trace.
+Calibre Mirror (formerly MRP Performance) reuses Calibre Tune's intake and data-engine modules so its numbers tie to Tune and Trace.
 They are **copies** — Tune is never edited from here. Every local change carries a `PERF-*` tag in a comment so
 a diff against the source shows exactly what differs.
 

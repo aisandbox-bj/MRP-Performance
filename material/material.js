@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   material/material.js · Calibre MRP Performance v0.2.0-dev · PERF-DEEPDIVE
+   material/material.js · Calibre Mirror v0.2.0-dev · PERF-DEEPDIVE
    ───────────────────────────────────────────────────────────────────────────
    One material's MRP mechanics, as a TAILORABLE STACK of blocks. The engine
    runs for this material only (PerfEngine.build opts.only) against the WHOLE
@@ -119,7 +119,7 @@
     st.ser = st.model.series.get(m) || null;
     st.chains = st.model.chains.filter(c => c.material === m).sort((a, b) => (a.prD ?? 1e9) - (b.prD ?? 1e9));
     st.mbRows = (st.json.data.mb51 || []).filter(r => trim(r.material) === m);
-    document.title = `MRP Performance · ${m}`;
+    document.title = `Calibre Mirror · ${m}`;
     $('#mdBody').classList.remove('hidden');
     renderBanner(); renderLayoutBar(); renderBlocks();
   }

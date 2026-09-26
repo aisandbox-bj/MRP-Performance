@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   shared/perf-charts.js · Calibre MRP Performance v0.1.0-dev
+   shared/perf-charts.js · Calibre Mirror v0.1.0-dev
    ───────────────────────────────────────────────────────────────────────────
    Inline-SVG charts for the Workbench. No chart library. Distribution-first:
    every duration view is a histogram (closed + still-open stacked, an
@@ -35,6 +35,15 @@
      selection with no data never moves what sits below it */
   function emptyBox(H, msg){ return `<div class="pc-empty" style="height:${H}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center">${esc(msg)}</div>`; }
   function fmt(n){ return n == null ? '—' : Math.round(n).toLocaleString(); }
+
+  /* MIRROR-HIST — in-flight marks are HATCHED (same hue, 45° texture + a light
+     tint) so "not finished yet" reads by texture as well as by weight — the
+     operator asked for "a shaded or a hashed colour". One pattern per colour. */
+  let patSeq = 0;
+  function hatchPattern(color){
+    const id = 'pch' + (++patSeq);
+    return { id, def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><rect width="5" height="5" fill="${color}" fill-opacity="0.16"/><rect width="1.9" height="5" fill="${color}" fill-opacity="0.95"/></pattern>` };
+  }
 
   /* nice axis ticks */
   function niceMax(v){
@@ -137,7 +146,9 @@
     const ymax = niceMax(Math.max(1, ...totals, hasOos ? o.oos : 0));
     const yv = (v) => padT + ph - (v / ymax) * ph;
     const xc = (i) => padL + slot * (i + (hasOos ? 1 : 0)) + slot / 2;
-    let g = '';
+    let g = '', defs = '';
+    const pats = new Map();                      // colour → pattern id (hatched series)
+    const hatchFill = (col) => { if (!pats.has(col)) { const hp = hatchPattern(col); pats.set(col, hp.id); defs += hp.def; } return `url(#${pats.get(col)})`; };
     /* grid + y ticks */
     for (const t of ticks(ymax, 4)) {
       const y = yv(t);
@@ -167,7 +178,9 @@
         const col = o.binColors ? o.binColors[i] : se.color;   // signed metrics: early / on-time / late for every series (opacity marks still-open)
         const sel = o.selected && o.selected.bin === i && (o.selected.key == null || o.selected.key === se.key);
         const d = isTop ? barPath(x, y1, bw, h, 4) : `M${x},${y1 + h}V${y1}H${x + bw}V${y1 + h}Z`;
-        g += `<path d="${d}" fill="${col}" fill-opacity="${se.opacity != null ? se.opacity : 1}" ${sel ? 'class="pc-sel"' : ''}/>`;
+        g += se.hatch
+          ? `<path d="${d}" fill="${hatchFill(col)}" stroke="${col}" stroke-width="1" stroke-opacity=".9" ${sel ? 'class="pc-sel"' : ''}/>`
+          : `<path d="${d}" fill="${col}" fill-opacity="${se.opacity != null ? se.opacity : 1}" ${sel ? 'class="pc-sel"' : ''}/>`;
         base += v;
       });
       g += `<rect data-hit="1" data-bin="${i}" tabindex="0" x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${ph}" fill="transparent" aria-label="${esc(b.label)}: ${totals[i]}"/>`;
@@ -184,7 +197,8 @@
       const x = mx(m);
       row = (x - lastLabelX < 96) ? row + 1 : 0; lastLabelX = x;
       g += `<line x1="${x}" x2="${x}" y1="${padT - 4 + row * 12}" y2="${padT + ph}" stroke="${PAL.pri}" stroke-opacity=".55" stroke-width="1"/>`;
-      g += `<text x="${x + 4}" y="${padT + 5 + row * 12}" class="pc-mk">${esc(m.label)}</text>`;
+      const nearEnd = x > W - padR - 96;                       // keep the label inside the chart at the right edge
+      g += `<text x="${nearEnd ? x - 4 : x + 4}" y="${padT + 5 + row * 12}" ${nearEnd ? 'text-anchor="end" ' : ''}class="pc-mk">${esc(m.label)}</text>`;
     }
     if (o.target && o.target.bin != null) {
       const x = mx(o.target);
@@ -192,7 +206,7 @@
       g += `<text x="${x - 4}" y="${padT - 16}" text-anchor="end" class="pc-mk pc-tgt">${esc(o.target.label)}</text>`;
     }
     if (o.xTitle) g += `<text x="${padL + pw / 2}" y="${H - 10}" text-anchor="middle" class="pc-ttl">${esc(o.xTitle)}</text>`;
-    host.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'Distribution')}">${g}</svg>`;
+    host.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'Distribution')}">${defs ? `<defs>${defs}</defs>` : ''}${g}</svg>`;
     if (!host._pcWired) {
       host._pcWired = true;
       wireHover(host, (el) => host._pcTip && host._pcTip(el));
@@ -203,7 +217,7 @@
       const bin = el.dataset.bin;
       if (bin === 'oos') return { title: 'Out of sequence (end dated before start)', rows: [{ value: fmt(o.oos), label: 'items', color: PAL.oos }] };
       const i = +bin;
-      const rows = o.series.map(se => ({ value: fmt(se.counts[i] || 0), label: se.label, color: se.color, opacity: se.opacity }));
+      const rows = o.series.map(se => ({ value: fmt(se.counts[i] || 0), label: se.label, color: se.color, opacity: se.hatch ? 0.55 : se.opacity }));
       rows.push({ value: grand ? Math.round(totals[i] / grand * 100) + '%' : '—', label: 'of all items' });
       return { title: o.bins[i].label + (o.unit ? ' ' + o.unit : ''), rows };
     };
@@ -523,9 +537,103 @@
 
   /* legend (HTML) — swatch mirrors the mark */
   function legend(items){
-    return '<div class="pc-legend">' + items.map(it =>
-      `<span class="pc-lg"><span class="pc-sw${it.line ? ' line' : ''}" style="background:${it.color};${it.opacity != null ? 'opacity:' + it.opacity + ';' : ''}"></span>${esc(it.label)}</span>`).join('') + '</div>';
+    return '<div class="pc-legend">' + items.map(it => {
+      const bg = it.hatch
+        ? `background:repeating-linear-gradient(45deg, ${it.color} 0 1.7px, transparent 1.7px 4px);box-shadow:inset 0 0 0 1px ${it.color};`
+        : `background:${it.color};${it.opacity != null ? 'opacity:' + it.opacity + ';' : ''}`;
+      return `<span class="pc-lg${it.off ? ' off' : ''}"><span class="pc-sw${it.line ? ' line' : ''}" style="${bg}"></span>${esc(it.label)}</span>`;
+    }).join('') + '</div>';
   }
 
-  global.PerfCharts = Object.freeze({ PAL, OPEN_OPACITY, histogram, cohortChart, bandChart, annualChevrons, timeBars, stackedColumns, legend, showTip, hideTip, esc });
+  /* ═════════════════════════════════════════════════════════════════════════
+     phaseBoxes(host, opts) — MIRROR-BOX: one horizontal box-and-whisker per
+     phase on ONE shared day scale. Solid = completed (box P25–P75, median
+     line, whiskers P10–P90, hollow dots = fastest / slowest); hatched, just
+     under it = in flight at its age so far (P25–P75 box, median, whisker to
+     P90, dot = oldest). Click (or Enter on) a row → onClick(key).
+       rows [{key, label, done:{n,q:{.1,.25,.5,.75,.9},min,max}, open:{n,q,max}}]
+       selected key · xTitle · aria · log (true = log(1 + days) axis, so a
+       same-day approval and a 400-day supplier tail are both readable; the
+       ticks stay in plain days)
+  ═════════════════════════════════════════════════════════════════════════ */
+  function phaseBoxes(host, o){
+    const W = Math.max(640, host.clientWidth || 1000);
+    const rowH = 50, padT = 16, padB = 40, padL = 196, padR = 250;
+    const H = padT + o.rows.length * rowH + padB;
+    const pw = W - padL - padR;
+    let top = 1;
+    for (const r of o.rows) {
+      if (o.log) { if (r.done.n) top = Math.max(top, r.done.max); if (r.open.n) top = Math.max(top, r.open.max); }
+      else { if (r.done.n) top = Math.max(top, r.done.q[0.9]); if (r.open.n) top = Math.max(top, r.open.q[0.9]); }
+    }
+    const xmax = o.log ? [10, 30, 60, 120, 365, 730, 1500, 3000, 10000].find(t => t >= top) || niceMax(top) : niceMax(top * 1.15);
+    const xs = o.log ? (v) => padL + Math.min(1, Math.max(0, Math.log1p(Math.max(0, v)) / Math.log1p(xmax))) * pw
+                     : (v) => padL + Math.min(1, Math.max(0, v / xmax)) * pw;
+    const tickVals = o.log ? [0, 1, 3, 7, 14, 30, 60, 120, 180, 365, 730, 1500, 3000, 10000].filter(t => t <= xmax) : ticks(xmax, 6);
+    let g = '', defs = '';
+    const hp = hatchPattern(PAL.s1); defs += hp.def;
+    let lastLab = -1e9;
+    for (const t of tickVals) {
+      g += `<line x1="${xs(t)}" x2="${xs(t)}" y1="${padT - 4}" y2="${H - padB + 4}" stroke="${t === 0 ? PAL.axis : PAL.grid}" stroke-width="1"/>`;
+      if (xs(t) - lastLab < 30) continue;          // no colliding tick labels
+      g += `<text x="${xs(t)}" y="${H - padB + 18}" text-anchor="middle" class="pc-ax">${fmt(t)}</text>`;
+      lastLab = xs(t);
+    }
+    if (o.xTitle) g += `<text x="${padL + pw / 2}" y="${H - 6}" text-anchor="middle" class="pc-ttl">${esc(o.xTitle)}</text>`;
+    const beyond = (v, y) => v > xmax ? `<text x="${padL + pw + 4}" y="${y + 4}" class="pc-ax" style="fill:${PAL.oos}">▸ ${fmt(v)}</text>` : '';
+    o.rows.forEach((r, k) => {
+      const y0 = padT + k * rowH, yD = y0 + 17, yO = y0 + 34, sel = o.selected === r.key;
+      if (sel) g += `<rect x="4" y="${y0 + 1}" width="${W - 8}" height="${rowH - 2}" rx="4" fill="rgba(240,244,243,0.06)"/><rect x="4" y="${y0 + 1}" width="3" height="${rowH - 2}" fill="${PAL.s1}"/>`;
+      if (r.group) g += `<line x1="8" x2="${W - 8}" y1="${y0}" y2="${y0}" stroke="${PAL.axis}" stroke-dasharray="2 3"/>`;
+      g += `<text x="16" y="${y0 + 21}" class="pc-mk" style="font-size:12.5px;${sel ? 'font-weight:700' : ''}">${esc(r.label)}</text>`;
+      g += `<text x="16" y="${y0 + 37}" class="pc-ax">${esc(r.sub || '')}</text>`;
+      /* completed */
+      if (r.done.n) {
+        const q = r.done.q;
+        g += `<line x1="${xs(q[0.1])}" x2="${xs(q[0.9])}" y1="${yD}" y2="${yD}" stroke="${PAL.s1}" stroke-width="1.5"/>`;
+        g += `<line x1="${xs(q[0.1])}" x2="${xs(q[0.1])}" y1="${yD - 5}" y2="${yD + 5}" stroke="${PAL.s1}" stroke-width="1.5"/><line x1="${xs(q[0.9])}" x2="${xs(q[0.9])}" y1="${yD - 5}" y2="${yD + 5}" stroke="${PAL.s1}" stroke-width="1.5"/>`;
+        g += `<rect x="${xs(q[0.25])}" y="${yD - 8}" width="${Math.max(2, xs(q[0.75]) - xs(q[0.25]))}" height="16" rx="3" fill="${PAL.s1}" fill-opacity=".55" stroke="${PAL.s1}" stroke-width="1"/>`;
+        g += `<line x1="${xs(q[0.5])}" x2="${xs(q[0.5])}" y1="${yD - 9}" y2="${yD + 9}" stroke="${PAL.pri}" stroke-width="2.2"/>`;
+        g += `<circle cx="${xs(r.done.min)}" cy="${yD}" r="3" fill="${PAL.surface}" stroke="${PAL.s1}" stroke-width="1.3"/><circle cx="${xs(r.done.max)}" cy="${yD}" r="3" fill="${PAL.surface}" stroke="${PAL.s1}" stroke-width="1.3"/>`;
+        g += beyond(r.done.max, yD);
+      } else g += `<text x="${padL + 6}" y="${yD + 4}" class="pc-ax">no completed items</text>`;
+      /* in flight */
+      if (r.open.n) {
+        const q = r.open.q;
+        g += `<line x1="${xs(q[0.1])}" x2="${xs(q[0.9])}" y1="${yO}" y2="${yO}" stroke="${PAL.s1}" stroke-width="1" stroke-opacity=".8"/>`;
+        g += `<rect x="${xs(q[0.25])}" y="${yO - 5}" width="${Math.max(2, xs(q[0.75]) - xs(q[0.25]))}" height="10" rx="2" fill="url(#${hp.id})" stroke="${PAL.s1}" stroke-width="1"/>`;
+        g += `<line x1="${xs(q[0.5])}" x2="${xs(q[0.5])}" y1="${yO - 6}" y2="${yO + 6}" stroke="${PAL.pri}" stroke-width="1.6"/>`;
+        g += `<circle cx="${xs(r.open.max)}" cy="${yO}" r="2.6" fill="${PAL.surface}" stroke="${PAL.s1}" stroke-width="1.2"/>`;
+        g += beyond(r.open.max, yO);
+      }
+      const md = r.done.n ? `${fmt(r.done.q[0.5])} d · P90 ${fmt(r.done.q[0.9])} d` : '—';
+      const mo = r.open.n ? `${fmt(r.open.n)} in flight · oldest ${fmt(r.open.max)} d` : 'none in flight';
+      g += `<text x="${W - padR + 26}" y="${yD + 4}" class="pc-mk">${esc(fmt(r.done.n) + ' done · ' + md)}</text>`;
+      g += `<text x="${W - padR + 26}" y="${yO + 4}" class="pc-ax">${esc(mo)}</text>`;
+      g += `<rect data-hit="1" data-key="${esc(r.key)}" tabindex="0" x="4" y="${y0 + 1}" width="${W - 8}" height="${rowH - 2}" fill="transparent" aria-label="${esc(r.label)} — open its histogram"/>`;
+    });
+    host.innerHTML = `<svg class="pc-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'Every phase')}"><defs>${defs}</defs>${g}</svg>`;
+    if (!host._pcWired) {
+      host._pcWired = true;
+      wireHover(host, (el) => host._pcTip && host._pcTip(el));
+      wireClick(host, (el) => host._pcClick && host._pcClick(el));
+    }
+    host._pcTip = (el) => {
+      const r = o.rows.find(x => x.key === el.dataset.key); if (!r) return null;
+      const rows = [];
+      if (r.done.n) {
+        const q = r.done.q;
+        rows.push({ value: fmt(r.done.n), label: 'completed', color: PAL.s1 },
+          { value: `${fmt(q[0.1])} · ${fmt(q[0.25])} · ${fmt(q[0.5])} · ${fmt(q[0.75])} · ${fmt(q[0.9])} d`, label: 'P10 · P25 · median · P75 · P90' },
+          { value: `${fmt(r.done.min)} – ${fmt(r.done.max)} d`, label: 'fastest – slowest' });
+      }
+      if (r.open.n) rows.push({ value: fmt(r.open.n), label: 'in flight', color: PAL.s1, opacity: 0.55 },
+        { value: `${fmt(r.open.q[0.5])} d · oldest ${fmt(r.open.max)} d`, label: 'median age so far' });
+      rows.push({ value: '↵', label: 'click to open this phase\'s histogram' });
+      return { title: r.label, rows };
+    };
+    host._pcClick = (el) => { if (o.onClick) o.onClick(el.dataset.key); };
+  }
+
+  global.PerfCharts = Object.freeze({ PAL, OPEN_OPACITY, histogram, cohortChart, bandChart, annualChevrons, timeBars, stackedColumns, phaseBoxes, legend, showTip, hideTip, esc });
 })(window);

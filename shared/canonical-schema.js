@@ -1,7 +1,7 @@
 /* ═══ BUILD-STAMP ═══════════════════════════════════════════════════════════
-   Calibre MRP Performance · v0.2.0-dev
+   Calibre Mirror · v0.3.0-dev
    Single source of truth for SCHEMA_VERSION and APP_VERSION (line ~22).
-   Repo : https://github.com/aisandbox-bj/MRP-Performance
+   Repo : https://github.com/aisandbox-bj/Calibre-Mirror
    RoC  : record-of-change.html
    BORROWED from Calibre Tune (aisandbox-bj/Inventory_Optimization @ 2896842,
    v2.2.0-dev). Same canonical JSON contract (SCHEMA_VERSION 1.0.0) so a Tune
@@ -16,11 +16,11 @@
   'use strict';
 
   const SCHEMA_VERSION = '1.0.0';
-  const APP_VERSION    = '0.2.0-dev';
+  const APP_VERSION    = '0.3.0-dev';
   /* PERF-INT-TYPE — which app built the JSON (additive metadata field; Tune
      JSONs simply don't carry it). APP_VERSION alone would be ambiguous
      between the two apps. */
-  const APP_NAME       = 'Calibre MRP Performance';
+  const APP_NAME       = 'Calibre Mirror';   // renamed from 'Calibre MRP Performance' 2026-09-26
 
   /* ─── Factory defaults — seeded from the existing Python skill ──────────── */
   const FACTORY_DEFAULTS = Object.freeze({

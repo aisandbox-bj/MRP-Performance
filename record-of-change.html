@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
-     Calibre MRP Performance · v0.1.0-dev · 2026-09-25
-     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     Calibre Mirror (was MRP Performance) · v0.3.0-dev
+     Repo : https://github.com/aisandbox-bj/Calibre-Mirror
      This file is the canonical changelog. Styling borrowed from the Calibre
      Tune Record of Change so the suite's RoCs read the same.
 ═════════════════════════════════════════════════════════════════════════-->
@@ -9,7 +9,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MRP Performance · Record of Change</title>
+<title>Calibre Mirror · Record of Change</title>
 <meta name="app-version" content="0.1.0-dev" />
 <meta name="app-released" content="2026-09-25" />
 <link rel="stylesheet" href="shared/brand-tokens.css" />
@@ -322,7 +322,7 @@ main.shell { padding-top: 28px; }
   <div class="brand">
     <span class="brand-mark"><svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Calibre"><rect x="3" y="3" width="94" height="94" rx="24" fill="#0B111B" stroke="currentColor" stroke-opacity=".42" stroke-width="2"/><g stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"><path d="M16 16 H26 M16 16 V26"/><path d="M84 16 H74 M84 16 V26"/><path d="M16 84 H26 M16 84 V74"/><path d="M84 84 H74 M84 84 V74"/></g><g stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M34 34 V66"/><path d="M66 34 V66"/><path d="M34 50 H66"/><path d="M34 50 L41 45 M34 50 L41 55"/><path d="M66 50 L59 45 M66 50 L59 55"/></g></svg></span>
     Calibre
-    <span class="brand-app">MRP Performance</span>
+    <span class="brand-app">Mirror</span>
     <a class="sub active" href="record-of-change.html">v0.1.0-dev · RoC</a>
   </div>
   <div class="links">
@@ -380,6 +380,27 @@ git -C peek push --force-with-lease origin main
   </section>
 
   <div class="roc-list">
+
+    <!-- v0.3.0-dev - MIRROR - 2026-09-26 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.3.0</span>
+        <span class="date">2026-09-26</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.3.0-dev — <b>Calibre Mirror: every phase at a glance → histogram → filterable drill → Excel</b> (MIRROR · MIRROR-HIST · MIRROR-DRILL · MIRROR-XLSX) — <b>browser-verified; pending operator validation</b></h4>
+      <ul>
+        <li><b>Renamed Calibre Mirror</b> (operator 2026-09-26): app name, titles, nav and docs. GitHub repository renamed <code>MRP-Performance</code> → <code>Calibre-Mirror</code> with the operator's OK (the old address redirects; history and rollback tags carried over). Browser storage keeps its <code>mrpPerf</code> namespace so saved datasets and settings carry over. Version folder <code>v0.3.0-dev/</code>; <code>v0.2.0-dev/</code> frozen as the rollback.</li>
+        <li><b>Mirror — every phase</b> (new first view): one box-and-whisker per phase (approval · buyer · supplier · 3PL · PR → PO · end to end) on one day scale — completed solid (P25–P75 box, median, P10–P90 whiskers, fastest / slowest dots), in flight hatched at its age so far (oldest dot). Stretched (log) scale by default so short and long phases are both readable; Even days on request. Click a phase → its histogram, band and breakdown underneath; the page never moves when switching phase (fixed-height header and tiles).</li>
+        <li><b>Completed / In flight switches</b> on every leg histogram; in-flight bars hatched; percentiles follow what is shown (“≥” while in-flight items are included); a switched-off series stays in the legend, struck through. "Closed / Still open" relabelled "Completed / In flight".</li>
+        <li><b>Drill list quick filters</b> (screener-style, ANDed, kept across drills): overdue vs need-by · below Min / SS now · stocked out now · continuous use (issued in ≥ 6 of the last 12 months — new engine field <code>consMonths12</code>) · created by · MRP type · supplier · days ≥ N; <b>PR / PO lines ⇄ Materials</b> (one row per material with its POs); new columns stock now, PR qty, days overdue.</li>
+        <li><b>Excel export</b> of exactly what is showing: Lines (material, description, manufacturer, MRP type, Min / Max / SS, stock and status as of the data date, months with an issue, unit cost, PR, PR item, created by, PR date, PR qty, released, PO, PO date, 107, 109, need-by, phase, days, status, days overdue, path) · Materials · About (dataset, data date, view, list, segment, window, filters, definitions). Dates are real Excel dates.</li>
+        <li><b>107 semantics settled</b> by the operator: 107 = arrived at the 3PL (blocked stock), 109 = at site — as built.</li>
+        <li><b>Verified:</b> June assessment — Mirror renders, every phase switch leaves the histogram card identical (663 px), Completed-off shows the in-flight spread alone (82 items incl. 20 at 365+ days), drill on the 365+ bucket → 20 lines / 18 materials, filters (below Min 4 · continuous 14 · CAT 15 · ≥ 450 d 6), Materials view, Excel workbook read back (3 sheets, dates as dates). Engine parity unchanged (1,673 / 1,673 chains · 200 / 200 stock series). Layout-shift audit clean on every view. Zero console errors on all pages.</li>
+        <li><b>Not in this version (queued):</b> slice 2 aged POs + open PRs (superseded or stuck) · slice 3 MRP-cancelled → manual-PR quantity match · slice 4 report output.</li>
+      </ul>
+      <div class="commit rollback"><b>Rollback.</b> Remote <code>backup/pre-v0.3.0</code> + <code>checkpoint/pre-v0.3.0</code>; local <code>_rollback/v0.3.0-pre/</code> and the frozen <code>v0.2.0-dev/</code> folder.</div>
+    </article>
 
     <!-- v0.2.0-dev follow-up - PERF-NO-SHIFT - 2026-09-25 -->
     <article class="roc-entry dev">

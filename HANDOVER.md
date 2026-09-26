@@ -1,15 +1,16 @@
-# HANDOVER — Calibre MRP Performance
+# HANDOVER — Calibre Mirror (formerly Calibre MRP Performance)
 
 ## Where things are
-- **Repo:** `aisandbox-bj/MRP-Performance` (public). Repo root mirrors the local dev folder `4 - Build Output/MRP Performance/v0.2.0-dev/` in the Calibre project folder (`v0.1.0-dev/` beside it is frozen as the rollback copy).
-- **Current version:** `v0.2.0-dev`. `SCHEMA_VERSION` 1.0.0 (same canonical JSON as Calibre Tune — additive fields only).
+- **Repo:** `aisandbox-bj/Calibre-Mirror` (public; renamed from `MRP-Performance` 2026-09-26 — the old URL redirects). Repo root mirrors the local dev folder `4 - Build Output/MRP Performance/v0.3.0-dev/` in the Calibre project folder (the local folder keeps its old name for now — it was in use during the rename; `v0.2.0-dev/` and `v0.1.0-dev/` beside it are frozen rollback copies).
+- **Current version:** `v0.3.0-dev`. Push with `push-calibre-mirror.sh` (beside the version folders).
+- **Browser storage namespace stays `mrpPerf` / `mrpPerfApp`** after the rename, so saved datasets and settings carry over. `SCHEMA_VERSION` 1.0.0 (same canonical JSON as Calibre Tune — additive fields only).
 - **The newest `record-of-change.html` entry** is the source of truth for what's on `origin/main` — don't hard-pin a SHA in docs.
 
 ## Push protocol (DO NOT DEVIATE)
 - **Never** run `git init` in the working folder. It is a plain folder, not a repo.
 - Clone to a temporary folder, copy the dev folder's files in, commit with explicit identity flags, push:
   ```
-  git -C <tmp>/push-MRP-Performance -c user.name='aisandbox-bj' -c user.email='aisandbox-bj@users.noreply.github.com' commit -m "..."
+  git -C <tmp>/push-Calibre-Mirror -c user.name='aisandbox-bj' -c user.email='aisandbox-bj@users.noreply.github.com' commit -m "..."
   ```
 - Use `git add -A` so new files aren't missed.
 - **Before every push** (change management):

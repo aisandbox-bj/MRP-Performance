@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--═══ BUILD-STAMP ═══════════════════════════════════════════════════════
-     Calibre MRP Performance · Roadmap · v0.1.0-dev
-     Repo : https://github.com/aisandbox-bj/MRP-Performance
+     Calibre Mirror · Roadmap · v0.3.0-dev
+     Repo : https://github.com/aisandbox-bj/Calibre-Mirror
      Same deck grammar as the Calibre Suite roadmap (slides · contents ·
      drag-reorderable pending tiles). Tile order is a per-viewer convenience
      kept in this browser only (localStorage, this app's own key).
@@ -10,7 +10,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MRP Performance · Roadmap</title>
+<title>Calibre Mirror · Roadmap</title>
 <style>
   :root {
     --bg-deep: #0a0e1a; --bg-panel: #131826; --bg-card: #1a2236; --bg-card2: #232d44;
@@ -99,7 +99,7 @@
 <body>
 <div class="deck">
   <div class="nav-bar">
-    <div class="nav-title">MRP Performance — Roadmap <a href="index.html">← App</a><a href="record-of-change.html">Record of change</a></div>
+    <div class="nav-title">Calibre Mirror — Roadmap <a href="index.html">← App</a><a href="record-of-change.html">Record of change</a></div>
     <div class="nav-controls">
       <button class="nav-btn" id="tocBtn">☰ Contents</button>
       <span class="nav-counter" id="counter">1 / 1</span>
@@ -112,12 +112,12 @@
 
     <div class="slide active cover" data-title="Cover">
       <div class="eyebrow">Calibre suite · new tool · started 2026-09-25</div>
-      <h1>Calibre <span>MRP Performance</span></h1>
-      <div class="sub">Supply-chain performance across every material — not one part at a time</div>
+      <h1>Calibre <span>Mirror</span></h1>
+      <div class="sub">Holds up a mirror to the supply process — every phase, every material, not one part at a time</div>
       <div class="tagline">What you cannot measure, you cannot manage.</div>
       <p style="max-width:640px;margin:0 auto 12px;font-size:14px;">A separate app from Calibre Tune and Trace (its own repo, its own browser storage). It borrows Tune's intake and engine modules as tracked copies, so the numbers tie, and never writes to Tune.</p>
       <div class="stats">
-        <div class="stat"><span class="stat-val">11</span><span class="stat-lbl">Shipped (v0.1 + v0.2)</span></div>
+        <div class="stat"><span class="stat-val">14</span><span class="stat-lbl">Shipped (v0.1 – v0.3)</span></div>
         <div class="stat"><span class="stat-val" id="nPending">—</span><span class="stat-lbl">Queued</span></div>
         <div class="stat"><span class="stat-val">1</span><span class="stat-lbl">Blocked on a decision</span></div>
       </div>
@@ -147,9 +147,12 @@
     </div>
 
     <div class="slide" data-title="What's shipped">
-      <div class="eyebrow">v0.1.0-dev + v0.2.0-dev · 2026-09-25 · browser-verified · pending operator validation</div>
-      <h1>What's shipped <span class="badge shipped">v0.2.0-dev</span></h1>
+      <div class="eyebrow">v0.1.0-dev – v0.3.0-dev · 2026-09-25 / 26 · browser-verified · pending operator validation</div>
+      <h1>What's shipped <span class="badge shipped">v0.3.0-dev</span></h1>
       <div class="tile-grid">
+        <div class="shipped-tile"><div class="v">v0.3 · MIRROR</div><div class="t">The mirror — every phase at a glance</div><div class="d">One box-and-whisker per phase on one day scale (completed solid, in flight hatched). Click a phase → its histogram with Completed / In flight switches → click a bar for the materials, PRs and POs.</div></div>
+        <div class="shipped-tile"><div class="v">v0.3 · MIRROR-DRILL</div><div class="t">Screener filters + Excel on every drill</div><div class="d">Overdue vs need-by, below Min / SS, stocked out, continuous use, created by, MRP type, supplier, days ≥ N; PR / PO lines or one row per material; Excel with Lines · Materials · About.</div></div>
+        <div class="shipped-tile"><div class="v">v0.2 · PERF-NO-SHIFT</div><div class="t">Nothing moves when you click</div><div class="d">Fixed headers with a one-line status strip, re-draws keep the scroll, tables over charts, fixed-height tables, drills and details in docked panels.</div></div>
         <div class="shipped-tile"><div class="v">v0.2 · PERF-DEEPDIVE</div><div class="t">Material deep-dive</div><div class="d">Tailorable block stack: stock vs Min/Max with MRP cadence, events, consumption and chains on one time axis; annual progression; month-on-month band; durations; crossings; order to Max; raw data with the MB51 ledger.</div></div>
         <div class="shipped-tile"><div class="v">v0.2 · drill-down</div><div class="t">From any list to one material and back</div><div class="d">Every drill row opens the deep-dive; Prev / Next through the list; Back restores the view, segment and window.</div></div>
         <div class="shipped-tile"><div class="v">v0.2 · PERF-BANDS</div><div class="t">Month-on-month bands</div><div class="d">Median, mean, P25–P75 and P10–P90 per month or quarter on every leg — is the leg getting faster, and more predictable?</div></div>
@@ -170,9 +173,10 @@
       <div class="pending-grid" id="pendingGrid"></div>
       <button class="reset-link" id="resetOrder">Reset to default order</button>
       <script type="application/json" id="pendingData">[
-        {"id":"REPORT","status":"next","version":"v0.3 · output","title":"Report output — Letter / widescreen light or dark → PDF","desc":"Choose and order graphs (stock with the MRP cadence underneath on one time scale, annual progression, bands…), then export US Letter (light) or widescreen 16:9 (light / dark) with tiles you drag, resize, delete and add on a blank page. Built on the deep-dive blocks and Workbench cards."},
-        {"id":"VALIDATE","status":"pending","version":"Operator · v0.2.0-dev","title":"Operator validation on real extracts","desc":"Run a real 150–500k-line MB51 + PR History + Inventory Master through Intake → Workbench. Report timings, anything that looks wrong, and which views earn their place."},
-        {"id":"107","status":"blocked","version":"Decision · data semantics","title":"Confirm what MB51 107 means at this site","desc":"Built on 107 = arrived at the 3PL (operator 2026-09-25 + Trace spec). Tune's stock-rebuild notes record 107 = shipped from 3PL toward site (2026-05-16). If the latter, the 3PL leg is transit only and 3PL dwell sits inside the supplier leg."},
+        {"id":"AGED","status":"next","version":"v0.4 · slice 2","title":"Aged POs and open PRs","desc":"PO-level lists (the PO is the tracking document): with the supplier (no 107) and blocked stock (107, no 109) aged to the data date; open PRs per material with days open, and whether a later PR's PO already covers them (superseded) or they are stuck."},
+        {"id":"MANUAL-SWAP","status":"pending","version":"v0.4 · slice 3","title":"MRP PR cancelled → manual PR: do the quantities match?","desc":"Pair each cancelled MRP PR with the manual PR(s) raised for the material around it; flag when the manual total is more than 15% off (tolerance a setting)."},
+        {"id":"REPORT","status":"pending","version":"slice 4 · output","title":"Report output — Letter / widescreen light or dark → PDF","desc":"Choose and order graphs (stock with the MRP cadence underneath on one time scale, annual progression, bands…), then export US Letter (light) or widescreen 16:9 (light / dark) with tiles you drag, resize, delete and add on a blank page. Built on the deep-dive blocks and Workbench cards."},
+        {"id":"VALIDATE","status":"pending","version":"Operator · v0.3.0-dev","title":"Operator validation on real extracts","desc":"Run a real 150–500k-line MB51 + PR History + Inventory Master through Intake → Workbench. Report timings, anything that looks wrong, and which views earn their place."},
         {"id":"SEG-SAVE","status":"pending","version":"v0.2 · segments","title":"Save, name and compare segments","desc":"Keep named segments (e.g. 'Top-quartile V1', 'High-value > $10k') and show two segments side by side as small multiples."},
         {"id":"TRACK","status":"pending","version":"v0.2 · tracking","title":"Scorecard snapshots and KPI tracking","desc":"Save each run's per-leg distributions (and your KPI targets) to a file; compare runs to see whether each leg is improving or drifting."},
         {"id":"ROOT","status":"pending","version":"v0.3 · root cause","title":"Stockout root-cause attribution","desc":"For every stockout, name the leg that broke: no trigger, late trigger, slow approval, slow buyer, supplier late, 3PL slow, or Min too low for the lead time."},
@@ -190,12 +194,13 @@
     <div class="slide" data-title="Decisions & open questions">
       <div class="eyebrow">Locked 2026-09-25 unless noted</div>
       <h1>Decisions &amp; open questions</h1>
-      <div class="card bar-g"><div class="card-label">Separate app</div><div class="card-content">Own repo (<code>aisandbox-bj/MRP-Performance</code>), own storage namespace (<code>mrpPerf</code>). Tune and Trace are not touched. Tune's shared modules are copied with a provenance manifest (source commit + SHA-256) so drift shows.</div></div>
+      <div class="card bar-g"><div class="card-label">Separate app</div><div class="card-content">Own repo (<code>aisandbox-bj/Calibre-Mirror</code>), own storage namespace (<code>mrpPerf</code>). Tune and Trace are not touched. Tune's shared modules are copied with a provenance manifest (source commit + SHA-256) so drift shows.</div></div>
       <div class="card bar-g"><div class="card-label">Same intake</div><div class="card-content">Tune's intake module, adapted. The input files decide the scope. V1 and PD both assessed. MB51 expected at 150k–500k lines.</div></div>
       <div class="card bar-g"><div class="card-label">Cohort anchoring</div><div class="card-content">Each leg anchored on its own start: PR→PO by PR-created month · supplier by PO month · 3PL by month goods reached the 3PL. Months are provisional until 90% have closed; open items count as lower bounds.</div></div>
       <div class="card bar-g"><div class="card-label">Trigger health</div><div class="card-content">Below the trigger line with NO open PO and NOTHING at the 3PL. A PR alone is not cover. Stock is rebuilt daily from MB51 — no daily snapshots needed.</div></div>
       <div class="card bar-g"><div class="card-label">Vendor, PO data, reporting</div><div class="card-content">Manufacturer stands in for vendor for now. No PO details (next phase, if ever). Workbench first; reporting module later. KPI targets entered once the baseline is seen.</div></div>
-      <div class="card bar-o"><div class="card-label">Open — 107 semantics</div><div class="card-content">See the blocked tile on "What's next".</div></div>
+      <div class="card bar-g"><div class="card-label">Settled 2026-09-26 — 107 / 109</div><div class="card-content">107 = arrived at the 3PL (blocked stock); 109 = received at site. The 3PL leg is 107 → 109; blocked stock is a 107 with no 109 (operator).</div></div>
+      <div class="card bar-g"><div class="card-label">Name — Calibre Mirror (2026-09-26)</div><div class="card-content">"It holds up a mirror and tells you what you look like — an objective assessment of where you are." Repo renamed to <code>Calibre-Mirror</code>; browser storage keeps its <code>mrpPerf</code> namespace so saved data carries over.</div></div>
       <div class="card bar-o"><div class="card-label">Found while building — PD without safety stock</div><div class="card-content">Zero stock isn't a trigger for PD without SS (MRP acts on reservations). Those stockouts are counted but kept out of trigger-response and trigger-debt, and named on the view.</div></div>
     </div>
 

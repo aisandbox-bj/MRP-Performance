@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   shared/perf-engine.js · Calibre MRP Performance v0.1.0-dev
+   shared/perf-engine.js · Calibre Mirror v0.1.0-dev
    ───────────────────────────────────────────────────────────────────────────
    The population engine. Reads the canonical JSON (same contract as Calibre
    Tune) and builds, for EVERY material in the files:
@@ -244,6 +244,7 @@
       const cons261 = [];
       let consQty = 0;                      // net consumption in window (for reorder frequency)
       let consEvents = 0;                   // consumption movements (261 / 201 …) in window — segment attribute
+      const consMonthSet = new Set();       // MIRROR-DRILL — calendar months with an issue in the 12 months to "as of"
       const deltas = new Float64Array(N);   // site-stock delta per day (MVT_SIGN / directional)
       let description = '';
       for (const r of mbRows) {
@@ -259,6 +260,7 @@
           if (mt === '109') { if (e.f109 == null || d < e.f109) e.f109 = d; e.r109.push({ d, q }); }
         }
         if (mt === '261' && d != null) cons261.push(d);
+        if (d != null && CONS_ISSUE.has(mt) && d > asOf - 365 && d <= asOf) consMonthSet.add(ym(d));
         if (d == null) continue;
         /* stock delta — identical rule to InventoryBackCalc.backCalcSOH */
         const qRaw = num(r.quantity);
@@ -300,7 +302,7 @@
         blockedStock: im ? num(im.blockedStock) : null,
         hasIm: !!im,
         /* segment attributes (material-level, window-based) */
-        consQty, consEvents,
+        consQty, consEvents, consMonths12: consMonthSet.size,   // MIRROR-DRILL — "continuous consumption" = issued in ≥ 6 of the last 12 months
         consPerYr: consQty / (N / 365),
         consValuePerYr: (im && num(im.movingAvgPrice) != null) ? (consQty / (N / 365)) * num(im.movingAvgPrice) : null,
         stockValue: (im && num(im.movingAvgPrice) != null && soh != null) ? soh * num(im.movingAvgPrice) : null,

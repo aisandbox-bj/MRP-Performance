@@ -1,12 +1,16 @@
-# Calibre MRP Performance
+# Calibre Mirror
 
-Browser-only, single-file-per-page app for **supply-chain performance review across every material** in a set of SAP extracts. Where Calibre Tune and Trace start from one material and ask whether it is healthy, MRP Performance starts from the process and asks where it breaks, how often and by how much — and shows every answer as a **distribution you can drill into**, never a bare average.
+*(formerly Calibre MRP Performance — renamed 2026-09-26; repository renamed from `MRP-Performance` to `Calibre-Mirror`, the old address redirects.)*
 
-Part of the **Calibre suite** (Tune · Trace · MRP Performance). It is a separate app with its own repository and its own browser storage; it borrows Tune's intake and data engine as tracked copies (see [`PROVENANCE.md`](PROVENANCE.md)) so its numbers tie to Tune and Trace, and it never writes to Tune.
+Browser-only, single-file-per-page app for **supply-chain performance review across every material** in a set of SAP extracts. It holds up a mirror to the supply process: where Calibre Tune and Trace start from one material and ask whether it is healthy, Calibre Mirror starts from the process and asks where it breaks, how often and by how much — and shows every answer as a **distribution you can drill into**, never a bare average.
+
+Part of the **Calibre suite** (Tune · Trace · Mirror). It is a separate app with its own repository and its own browser storage; it borrows Tune's intake and data engine as tracked copies (see [`PROVENANCE.md`](PROVENANCE.md)) so its numbers tie to Tune and Trace, and it never writes to Tune.
 
 ## Status
 
-**v0.2.0-dev** (2026-09-25) — material deep-dive (a tailorable stack: stock vs Min/Max with the MRP cadence, events and chains underneath on one time axis; annual progression; month-on-month bands; raw data), drill-down from every list with Prev / Next and Back, month-on-month band charts on every leg, PR / PO volume splits (MRP vs manual, V1 vs PD, outcome), an MRP-activity heat map and a per-material parameters table. v0.1.0-dev (first build) is the rollback. Browser-verified; **pending operator validation on real extracts**. `SCHEMA_VERSION` = `1.0.0` (same contract as Tune), `APP_VERSION` = `0.2.0-dev`. Full history and rollback steps: [`record-of-change.html`](record-of-change.html). Queue: [`roadmap.html`](roadmap.html) and [`Backlog.md`](Backlog.md). Operator manual: [`user-manual.html`](user-manual.html).
+**v0.3.0-dev** (2026-09-26) — **the Mirror**: one box-and-whisker per phase of supply (approval, buyer, supplier, 3PL, PR → PO, end to end) on one day scale, completed solid and in-flight hatched; click a phase for its histogram with **Completed / In flight** switches (see the in-flight spread on its own); click any bar for the materials, PRs and POs behind it, narrow them with screener-style quick filters (overdue vs need-by, below Min / SS now, stocked out, continuous use, created by, MRP type, supplier, days ≥ N), switch between PR / PO lines and one row per material, and **export to Excel** (Lines · Materials · About). App renamed Calibre Mirror. v0.2.0-dev is the rollback. Browser-verified; **pending operator validation**. `APP_VERSION` = `0.3.0-dev`.
+
+**v0.2.0-dev** (2026-09-25) — material deep-dive (a tailorable stack: stock vs Min/Max with the MRP cadence, events and chains underneath on one time axis; annual progression; month-on-month bands; raw data), drill-down from every list with Prev / Next and Back, month-on-month band charts on every leg, PR / PO volume splits (MRP vs manual, V1 vs PD, outcome), an MRP-activity heat map and a per-material parameters table. v0.1.0-dev (first build) is the rollback. Browser-verified; **pending operator validation on real extracts**. `SCHEMA_VERSION` = `1.0.0` (same contract as Tune). Full history and rollback steps: [`record-of-change.html`](record-of-change.html). Queue: [`roadmap.html`](roadmap.html) and [`Backlog.md`](Backlog.md). Operator manual: [`user-manual.html`](user-manual.html).
 
 ## What it answers
 
@@ -24,7 +28,7 @@ All of it for any **segment** — drop-in tiles for movement quartile, unit cost
 ```
 index.html              Dashboard — saved datasets, open .json, clear this app's session data
 intake/                 Intake — MB51 + Inventory Master + PR History → DQ gate → canonical JSON (Tune's intake, adapted)
-workbench/              Workbench — segment builder + 15 views (distributions, month-on-month bands, volumes, heat map, materials table) + drill tables
+workbench/              Workbench — Mirror (phase box plots → histogram → filterable drill → Excel), segment builder + 15 views (distributions, month-on-month bands, volumes, heat map, materials table) + drill tables
 material/               Material deep-dive — tailorable block stack on one time axis (stock · cadence · events · consumption · chains) + annual progression, bands, durations, crossings, order-to-Max, raw data
 roadmap.html            Roadmap deck — shipped, queue (drag to reorder), decisions, data contract
 record-of-change.html   Every push, what changed, how to roll back
