@@ -42,6 +42,7 @@
     cad: { measure: 'pr', split: 'trigger' },
     heat: { sort: 'exposure', rows: 60 },
     filtersOpen: false,          // PERF-FILTER-COLLAPSE — the Window + Segment panel starts folded to one line
+    tblOpen: {},                 // PERF-NO-SHIFT — which charts have their table view open (it opens OVER the chart)
     matPass: null, matCount: 0,
     quartileCache: new Map()
   };
@@ -538,6 +539,7 @@
   }
   function go(view){
     state.view = view; state.cohortSel = null; state.drill = null; saveUi();
+    document.documentElement.style.setProperty('--dock-pad', '0px');
     renderRail(); renderView();
     window.scrollTo({ top: $('#wbGrid').offsetTop - 70, behavior: 'smooth' });
   }
@@ -557,8 +559,9 @@
       plan: viewPlan, sizing: viewSizing, overunder: viewOverUnder, checks: viewChecks,
       materials: viewMaterials, heat: viewHeat
     }[state.view] || viewOverview;
-    host.innerHTML = '';
-    fn(host);
+    /* PERF-NO-SHIFT — the page keeps its scroll position through the re-draw */
+    U.keepScroll(host, () => { host.innerHTML = ''; fn(host); });
+    renderDrill();
     saveUi();
   }
 
@@ -570,6 +573,27 @@
     return el;
   }
   function div(parent, cls, html){ const d = document.createElement('div'); if (cls) d.className = cls; if (html != null) d.innerHTML = html; parent.appendChild(d); return d; }
+  /* PERF-NO-SHIFT — a one-line status strip of fixed height: what the card is
+     showing right now. Its text changes with the toggles; its height never does. */
+  function cap(parent, html, full){ const d = div(parent, 'card-cap', html); if (full) d.title = full; return d; }
+  /* PERF-NO-SHIFT — the ▦ Table view opens OVER its chart (same box, scrolls
+     inside) instead of pushing everything below it down. Remembered per chart. */
+  function swapTable(cardEl, chartEl, tblEl, key){
+    const box = document.createElement('div'); box.className = 'swapbox';
+    chartEl.parentNode.insertBefore(box, chartEl); box.appendChild(chartEl);
+    tblEl.className = 'swap-table'; box.appendChild(tblEl);
+    const btn = cardEl.querySelector('[data-tbl]');
+    const sync = () => { const o = !!state.tblOpen[key]; tblEl.classList.toggle('hidden', !o); btn.classList.toggle('on', o); btn.textContent = o ? '▦ Chart' : '▦ Table'; };
+    btn.addEventListener('click', () => { state.tblOpen[key] = !state.tblOpen[key]; sync(); });
+    sync();
+  }
+  function focusCap(parent, sel, what){
+    const c = cap(parent, sel
+      ? `Focused on <b>${esc(what)} ${esc(sel)}</b> only <button data-clearsel>✕ Show all periods</button>`
+      : `<span class="muted">All periods in the window — click a period in the ${esc(state.bandGran)} chart below to focus on it.</span>`);
+    const b = c.querySelector('[data-clearsel]'); if (b) b.addEventListener('click', () => { state.cohortSel = null; renderView(); });
+    return c;
+  }
   function statTile(l, v, d, cls, attrs){ return `<div class="stat ${cls || ''}" ${attrs || ''}><span class="l">${esc(l)}</span><div class="v">${v}</div>${d ? `<div class="d">${d}</div>` : ''}</div>`; }
   function qv(q){ return q == null ? '—' : (q.lowerBound ? '≥ ' : '') + fmt(q.v) + '<small>d</small>'; }
   function qtxt(q){ return q == null ? '—' : (q.lowerBound ? '≥ ' : '') + fmt(q.v) + ' d'; }
@@ -605,8 +629,8 @@
     const target = state.settings.targets[key];
 
     if (opts.intro) div(host, 'view-intro', opts.intro);
-    const c1 = card(host, M.label, esc(M.def) + (sel ? ` <span class="chip">${esc(M.anchorLabel)} ${esc(sel)} <button data-clearsel aria-label="Clear month">✕</button></span>` : ''),
-      `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    const c1 = card(host, M.label, esc(M.def), `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    focusCap(c1, sel, M.anchorLabel);
     /* stat strip */
     let within = '';
     if (target != null) {
@@ -631,7 +655,7 @@
     if (col.bypass) other.push(`${fmt(col.bypass)} skipped this leg (site receipt with no 3PL receipt)`);
     if (col.term) other.push(`${fmt(col.term)} ended earlier (cancelled)`);
     if (col.notdue) other.push(`${fmt(col.notdue)} not due yet`);
-    if (other.length) div(c1, 'muted-note', 'Not in the chart: ' + esc(other.join(' · ')) + '.');
+    { const t = other.length ? 'Not in the chart: ' + other.join(' · ') + '.' : 'Every item in the segment and window is in the chart.'; cap(c1, `<span class="muted">${esc(t)}</span>`, t); }
     div(c1, null, C.legend(M.signed ? [
       { label: 'Early', color: C.PAL.early }, { label: 'On the day', color: C.PAL.ontime }, { label: 'Late', color: C.PAL.late },
       { label: 'Still open — late by at least this (dimmed)', color: C.PAL.late, opacity: C.OPEN_OPACITY }
@@ -664,8 +688,7 @@
     draw();
     const tbl = div(c1, 'hidden');
     tbl.innerHTML = binTable(bins, [['Closed', cDone], ['Still open', cOpen]], M.signed ? null : col.oos.length);
-    c1.querySelector('[data-tbl]').addEventListener('click', (e) => { tbl.classList.toggle('hidden'); e.target.classList.toggle('on'); });
-    const cs = c1.querySelector('[data-clearsel]'); if (cs) cs.addEventListener('click', () => { state.cohortSel = null; renderView(); });
+    swapTable(c1, hHost, tbl, state.view + ':' + key);
     const stt = c1.querySelector('[data-settarget]'); if (stt) stt.addEventListener('click', openSettings);
     /* tail buttons */
     const tails = div(c1, 'tails');
@@ -698,7 +721,6 @@
     breakdownCard(host, key, chains, M, opts.breakdown || 'manufacturer');
 
     if (opts.after) opts.after(host, chains, col);
-    drillCard(host);
   }
 
   function binTable(bins, rows, oos){
@@ -737,7 +759,7 @@
       'Every group\'s spread side by side — where the process deviates and by how much. Click a row to add it to the segment.',
       `<select data-bdim aria-label="Break down by">${BREAK_DIMS.map(([k, l]) => `<option value="${k}" ${k === dim ? 'selected' : ''}>by ${l}</option>`).join('')}</select>`);
     c.querySelector('[data-bdim]').addEventListener('change', (e) => { state.breakdownDim[bk] = e.target.value; renderView(); });
-    const t = div(c, 'tblwrap');
+    const t = div(c, 'tblwrap fixed');
     renderTable(t, {
       rows, sort: { key: 'closed', dir: -1 },
       cols: [
@@ -755,18 +777,31 @@
   /* ═════════════════════════════════════════════════════════════════════════
      DRILL
   ═════════════════════════════════════════════════════════════════════════ */
+  /* PERF-NO-SHIFT — the drill list opens in a panel docked to the bottom of
+     the screen, OVER the page: nothing moves and the page doesn't scroll.
+     Drag its top edge to resize; ✕ or Esc closes it. The page gains room at
+     the bottom so its last card can still be scrolled clear of the panel. */
+  let drillDock = null;
   function setDrill(d){
     state.drill = d;
     renderView();
-    const el = $('#drillCard'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function drillCard(host){
-    if (!state.drill) return;
+  function renderDrill(){
+    if (!drillDock) drillDock = U.dockPanel('wbDrill', { onClose: () => { state.drill = null; renderView(); },
+      onResize: (h) => document.documentElement.style.setProperty('--dock-pad', h + 'px') });
+    if (!state.drill) { drillDock.close(); return; }
     const d = state.drill;
-    const c = card(host, 'Drill · ' + d.title, `${fmt(d.items.length)} item${d.items.length === 1 ? '' : 's'} — sort any column, export to CSV.`, `<button class="btn-sm ghost" data-closedrill>✕ Close</button>`);
-    c.id = 'drillCard';
-    c.querySelector('[data-closedrill]').addEventListener('click', () => { state.drill = null; renderView(); });
-    const t = div(c, 'tblwrap');
+    drillDock.open(`Drill · ${esc(d.title)}<small>${fmt(d.items.length)} item${d.items.length === 1 ? '' : 's'} — sort any column, export to CSV</small>`);
+    document.documentElement.style.setProperty('--dock-pad', drillDock.el.offsetHeight + 'px');
+    const t = drillDock.body; t.className = 'dock-b'; t.innerHTML = '';
+    const tw = div(t, 'tblwrap');
+    renderDrillTable(tw, d);
+  }
+  document.addEventListener('keydown', (e) => {   // capture phase: runs before the filter / settings Esc handlers
+    if (e.key !== 'Escape' || !state.drill || state.filtersOpen || !$('#setModal').classList.contains('hidden')) return;
+    state.drill = null; renderView();
+  }, true);
+  function renderDrillTable(t, d){
     const spec = DRILL_SPECS[d.kind];
     const rows = d.items.map(it => spec.row(it, d));
     const hasMat = rows.length && rows[0].material !== undefined;
@@ -929,7 +964,8 @@
       nb.querySelector('[data-nl="pd"]').addEventListener('click', () => setDrill({ kind: 'episodes', title: 'PD without SS — at zero stock', items: pd0 }));
       nb.querySelector('[data-nl="v1"]').addEventListener('click', () => setDrill({ kind: 'episodes', title: 'V1 with Min 0 — at zero stock', items: v0 }));
     }
-    const c1 = card(host, 'Days from crossing to a PR being raised', (sel ? `<span class="chip">Crossed in ${esc(sel)} <button data-clearsel>✕</button></span> ` : '') + 'Closed = a PR was raised while the part was still below the line; still open = no PR yet, counted at its age.', `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    const c1 = card(host, 'Days from crossing to a PR being raised', 'Closed = a PR was raised while the part was still below the line; still open = no PR yet, counted at its age.', `<button class="btn-sm" data-tbl>▦ Table</button>`);
+    focusCap(c1, sel, 'crossed in');
     const done = eps.filter(e => e.response === 'PR raised');
     const open = eps.filter(e => e.response === 'no PR yet');
     const dv = done.map(e => e.toPr), ov = open.map(e => m.asOf - e.T);
@@ -952,8 +988,7 @@
       xTitle: 'days from stock crossing its trigger line to a PR', aria: 'Trigger to PR distribution',
       onBin: (b) => setDrill({ kind: 'episodes', title: `Trigger → PR · ${bins[b].label} days`, items: done.filter(e => E.binIndex(bins, e.toPr) === b).concat(open.filter(e => E.binIndex(bins, m.asOf - e.T) === b)) }) });
     const tb = div(c1, 'hidden'); tb.innerHTML = binTable(bins, [['PR raised', cd], ['No PR yet', co]]);
-    c1.querySelector('[data-tbl]').addEventListener('click', (e) => { tb.classList.toggle('hidden'); e.target.classList.toggle('on'); });
-    const cs = c1.querySelector('[data-clearsel]'); if (cs) cs.addEventListener('click', () => { state.cohortSel = null; renderView(); });
+    swapTable(c1, h, tb, 'response');
     const st = c1.querySelector('[data-settarget]'); if (st) st.addEventListener('click', openSettings);
 
     /* what happened at each crossing */
@@ -995,13 +1030,12 @@
     const c4 = card(host, 'Breakdown · crossings', 'Click a row to add it to the segment.',
       `<select data-bdim>${BREAK_DIMS.filter(b => b[0] !== 'trigger').map(([k, l]) => `<option value="${k}" ${k === dim ? 'selected' : ''}>by ${l}</option>`).join('')}</select>`);
     c4.querySelector('[data-bdim]').addEventListener('change', (e) => { state.breakdownDim[bk] = e.target.value; renderView(); });
-    renderTable(div(c4, 'tblwrap'), { rows, sort: { key: 'n', dir: -1 },
+    renderTable(div(c4, 'tblwrap fixed'), { rows, sort: { key: 'n', dir: -1 },
       cols: [{ key: 'group', label: BREAK_DIMS.find(b => b[0] === dim)[1], cls: 'wrap' }, { key: 'n', label: 'Crossings', num: true },
         { key: 'nakedPct', label: 'Nothing on order at crossing', num: true, f: v => Math.round(v * 100) + '%' },
         { key: 'med', label: 'Median → PR', num: true, f: v => qtxt(v), sv: r => r.med ? r.med.v : -1 }, { key: 'p90', label: 'P90 → PR', num: true, f: v => qtxt(v), sv: r => r.p90 ? r.p90.v : -1 },
         { key: 'exp', label: 'Days with nothing on order', num: true }, { key: 'so', label: 'Stocked-out days', num: true }],
       onRow: (r) => segmentOn(dim, r.group), csv: 'crossings-breakdown' });
-    drillCard(host);
   }
 
   /* ── exposure & stockouts ─────────────────────────────────────────────── */
@@ -1024,11 +1058,12 @@
       statTile('Median length', lenAll.length ? fmt(lenAll[Math.floor((lenAll.length - 1) / 2)]) + '<small>d</small>' : '—', '') +
       statTile('Still out today', fmt(so.filter(s => s.ongoing).length), ''));
     div(c1, null, C.legend([{ label: 'Order in flight at start', color: C.PAL.s1 }, { label: 'Nothing on order at start', color: C.PAL.s2 }]));
-    C.histogram(div(c1, 'chart'), { bins, unit: 'days', series: [{ key: 'a', label: 'order in flight', color: C.PAL.s1, counts: cA }, { key: 'b', label: 'nothing on order', color: C.PAL.s2, counts: cB }],
+    const hc = div(c1, 'chart');
+    C.histogram(hc, { bins, unit: 'days', series: [{ key: 'a', label: 'order in flight', color: C.PAL.s1, counts: cA }, { key: 'b', label: 'nothing on order', color: C.PAL.s2, counts: cB }],
       xTitle: 'days at zero stock', aria: 'Stockout length distribution',
       onBin: (b) => setDrill({ kind: 'stockouts', title: `Stockouts · ${bins[b].label} days`, items: so.filter(s => E.binIndex(bins, s.days) === b) }) });
     const tb = div(c1, 'hidden'); tb.innerHTML = binTable(bins, [['Order in flight', cA], ['Nothing on order', cB]]);
-    c1.querySelector('[data-tbl]').addEventListener('click', (e) => { tb.classList.toggle('hidden'); e.target.classList.toggle('on'); });
+    swapTable(c1, hc, tb, 'exposure');
 
     /* exposure over time — small multiples, same x */
     const series = exposureSeries();
@@ -1042,7 +1077,6 @@
     div(c3, 'row', `<button class="btn-sm" data-dr="1">List ${fmt(exp.length)} exposed crossings</button><button class="btn-sm" data-dr="2">List all ${fmt(so.length)} stockouts</button>`);
     c3.querySelector('[data-dr="1"]').addEventListener('click', () => setDrill({ kind: 'episodes', title: 'Exposed crossings', items: exp }));
     c3.querySelector('[data-dr="2"]').addEventListener('click', () => setDrill({ kind: 'stockouts', title: 'All stockouts', items: so }));
-    drillCard(host);
   }
 
   /* per-period aggregation over the model window, restricted to the time window */
@@ -1110,7 +1144,7 @@
       mrp:     { label: 'V1 vs PD', keys: [['V1', 'V1', C.PAL.s1], ['PD', 'PD', C.PAL.s2], ['Other', 'Other / not in Inv. Master', C.PAL.s3]],
                  of: c => { const t = mInfo(c.material).mrpType; return t === 'V1' ? 'V1' : t === 'PD' ? 'PD' : 'Other'; } },
       outcome: cad.measure === 'po'
-        ? { label: 'Receipt status', keys: [['site', 'Received at site', C.PAL.s1], ['tpl', 'At the 3PL', C.PAL.s4], ['await', 'Awaiting receipt', C.PAL.s2]],
+        ? { label: 'Outcome', keys: [['site', 'Received at site', C.PAL.s1], ['tpl', 'At the 3PL', C.PAL.s4], ['await', 'Awaiting receipt', C.PAL.s2]],
             of: c => c.g109 != null ? 'site' : c.g107 != null ? 'tpl' : 'await' }
         : { label: 'Outcome', keys: [['po', 'Became a PO', C.PAL.s1], ['open', 'Still open', C.PAL.s2], ['churn', 'MRP churn', C.PAL.s3], ['cancel', 'Cancelled', C.PAL.s4]],
             of: c => c.po ? 'po' : c.churn ? 'churn' : c.cancelled ? 'cancel' : 'open' }
@@ -1120,11 +1154,14 @@
     for (const c of chains) { const d = cad.measure === 'po' ? c.poD : c.prD; const j = pb.idx.get(pb.keyOf(d)); vals[sp.of(c)][j]++; }
     const labels = pb.labels.map(shortLabel);
     div(host, 'view-intro', `<h2>PR and PO volumes — where MRP runs, and where it doesn't</h2><p>PRs are counted on the day they were created — with no MRP run log, that date is the evidence of an MRP run. Split by MRP vs manual, V1 vs PD, or outcome, for whatever segment is set above. The <b>trigger debt</b> chart underneath (same time axis) counts materials sitting below their trigger line with nothing on order and no PR: quiet PR days while debt climbs point at MRP not running, or its output not reaching PRs.</p>`);
-    const c1 = card(host, `${cad.measure === 'po' ? 'POs raised' : 'PRs created'} per ${state.gran} · by ${sp.label}`, `${fmt(chains.length)} ${cad.measure === 'po' ? 'PO lines' : 'PR lines'} in the segment and window. Click a column to list them.`,
+    /* PERF-NO-SHIFT — the title and subtitle stay the same whatever is toggled;
+       what is being shown goes in the fixed-height status strip under them */
+    const c1 = card(host, 'PR and PO volumes per period', 'Click a column to list its lines.',
       `<span class="seg-lab">Count</span><button class="btn-sm ${cad.measure === 'pr' ? 'on' : ''}" data-meas="pr">PRs</button><button class="btn-sm ${cad.measure === 'po' ? 'on' : ''}" data-meas="po">POs</button>
        <span class="seg-lab">Split</span>${Object.entries(SPLITS).map(([k, v]) => `<button class="btn-sm ${cad.split === k ? 'on' : ''}" data-split="${k}">${esc(v.label)}</button>`).join('')}
        <span class="seg-lab">By</span>${granButtons()}`);
     wireGran(c1);
+    cap(c1, `Showing <b>${cad.measure === 'po' ? 'POs raised' : 'PRs created'}</b> per <b>${esc(state.gran)}</b>, split by <b>${esc(sp.label)}</b> · <b>${fmt(chains.length)}</b> ${cad.measure === 'po' ? 'PO lines' : 'PR lines'} in the segment and window`);
     c1.querySelectorAll('[data-meas]').forEach(b => b.addEventListener('click', () => { cad.measure = b.dataset.meas; state.drill = null; renderView(); }));
     c1.querySelectorAll('[data-split]').forEach(b => b.addEventListener('click', () => { cad.split = b.dataset.split; state.drill = null; renderView(); }));
     div(c1, null, C.legend(sp.keys.map(k => ({ label: k[1], color: k[2] }))));
@@ -1156,7 +1193,6 @@
 
     const c3 = card(host, 'Which weekday MRP PRs are created', 'Reveals the actual run schedule (a weekly run shows one tall bar).');
     C.timeBars(div(c3, 'chart'), { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], values: dow, color: C.PAL.s1, title: 'MRP-created PR lines by weekday', unit: 'PRs', height: 170 });
-    drillCard(host);
   }
   function dailyDebt(a, b){
     const m = state.model, out = new Map();
@@ -1212,7 +1248,6 @@
     C.histogram(div(c3, 'chart'), { bins, unit: 'days', height: 220, series: [{ key: 'a', label: 'awaiting release', color: C.PAL.s2, counts: ca }, { key: 'r', label: 'released, awaiting PO', color: C.PAL.s1, counts: cr }],
       xTitle: 'days since the PR was created', aria: 'Open PR aging',
       onBin: (b) => setDrill({ kind: 'chains', metric: 'AB', title: `Open PRs · ${bins[b].label} days old`, items: open.filter(c => E.binIndex(bins, m.asOf - c.prD) === b) }) });
-    drillCard(host);
   }
 
   /* ── internal ─────────────────────────────────────────────────────────── */
@@ -1282,10 +1317,11 @@
       statTile('Over the gap (> 110%)', pct(ords.filter(o => o.ratio != null && o.ratio > 1.1).length, ords.length), 'ordering past Max') +
       statTile('Ordered while at / above Max', fmt(ords.filter(o => o.ratio == null).length), 'no gap at all'));
     div(c1, null, C.legend(series.map(s => ({ label: s.label, color: s.color }))));
-    C.histogram(div(c1, 'chart'), { bins, series, xTitle: 'ordered ÷ gap to Max', aria: 'Order-to-Max ratio',
+    const hc = div(c1, 'chart');
+    C.histogram(hc, { bins, series, xTitle: 'ordered ÷ gap to Max', aria: 'Order-to-Max ratio',
       onBin: (b) => setDrill({ kind: 'orders', title: `V1 orders · ${bins[b].label}`, items: ords.filter(o => binOf(o) === b) }) });
     const tb = div(c1, 'hidden'); tb.innerHTML = binTable(bins, series.map(s => [s.label, s.counts]));
-    c1.querySelector('[data-tbl]').addEventListener('click', (e) => { tb.classList.toggle('hidden'); e.target.classList.toggle('on'); });
+    swapTable(c1, hc, tb, 'sizing');
 
     /* stock after receipt */
     const rec = m.receipts.filter(r => r.mrpType === 'V1' && r.fill != null && matOk(r.material) && inPeriod(r.d));
@@ -1302,18 +1338,18 @@
     const c3 = card(host, 'Reorder frequency vs plan (per V1 material)', `Actual POs per year ÷ expected (annual consumption ÷ (Max − Min)). Well above 1× = ordering more often than the Min/Max band implies — limping. Whole MB51 window; ${fmt(ro.length - withExp.length)} materials have no consumption or no Max > Min, so no expectation.`);
     C.histogram(div(c3, 'chart'), { bins: rb, height: 220, series: [{ key: 'r', label: 'materials', color: C.PAL.s1, counts: cr }], xTitle: 'actual ÷ expected reorders per year', aria: 'Reorder frequency',
       onBin: (b) => setDrill({ kind: 'reorder', title: `Reorder frequency · ${rb[b].label}`, items: withExp.filter(r => E.binIndex(rb, r.ratio) === b) }) });
-    drillCard(host);
   }
 
   /* ── over / under ─────────────────────────────────────────────────────── */
   function viewOverUnder(host){
     const tabs = [['receipts', 'Receipts vs need'], ['shelf', 'Shelf time']];
+    /* PERF-NO-SHIFT — one intro above the tabs, so both tabs start at the same place */
+    div(host, 'view-intro', `<h2>Where are we over- and under-ordering?</h2><p><b>Receipts vs need</b> — <b>over:</b> receipts that land a V1 part above Max, or arrive when stock is already comfortably above its trigger line; <b>under:</b> receipts that arrive after the part has already run out (see also Exposure &amp; stockouts). <b>Shelf time</b> — how long received goods sat at site before their first use.</p>`);
     const t = div(host, 'subtabs', tabs.map(([k, l]) => `<button class="btn-sm ${state.sub.overunder === k ? 'on' : ''}" data-sub="${k}">${l}</button>`).join(''));
     t.querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => { state.sub.overunder = b.dataset.sub; state.cohortSel = null; state.drill = null; renderView(); }));
     if (state.sub.overunder === 'shelf') { metricView(host, 'E', { breakdown: 'mrpType' }); return; }
     const m = state.model;
     const rec = m.receipts.filter(r => matOk(r.material) && inPeriod(r.d));
-    div(host, 'view-intro', `<h2>Where are we over- and under-ordering?</h2><p><b>Over:</b> receipts that land a V1 part above Max, or arrive when stock is already comfortably above its trigger line. <b>Under:</b> receipts that arrive after the part has already run out (see also Exposure &amp; stockouts).</p>`);
     const lb = [{ lo: -Infinity, hi: 0, label: 'stocked out' }, { lo: 1e-9, hi: 0.9999, label: 'below line' }, { lo: 1, hi: 1.5, label: '1–1.5× line' }, { lo: 1.5001, hi: 2, label: '1.5–2×' }, { lo: 2.0001, hi: Infinity, label: '> 2× line' }];
     const binR = (r) => r.before <= 0.001 ? 0 : (r.beforeVsLine == null ? null : E.binIndex(lb, r.beforeVsLine));
     const sV = new Array(lb.length).fill(0), sP = sV.slice();
@@ -1333,7 +1369,6 @@
     const c2 = card(host, 'Receipts that pushed a V1 part above Max', 'Value = qty above Max × moving average price.');
     div(c2, 'row', `<button class="btn-sm">List ${fmt(over.length)} receipts, largest $ first</button>`).querySelector('button')
       .addEventListener('click', () => setDrill({ kind: 'receipts', title: 'V1 receipts above Max', items: over }));
-    drillCard(host);
   }
 
   /* ── data checks ──────────────────────────────────────────────────────── */
@@ -1354,7 +1389,7 @@
     </ul>`);
 
     const c1 = card(host, 'Engine parity with Tune\'s own modules', 'Recomputes a sample with Trace\'s chain engine and Tune\'s stock back-calc and compares every value.', `<button class="btn-sm" id="btnParity">Run parity check</button>`);
-    const pr = div(c1, 'muted-note', 'Not run yet.');
+    const pr = div(c1, 'muted-note parity-out', 'Not run yet.');
     c1.querySelector('#btnParity').addEventListener('click', () => {
       pr.textContent = 'Running…';
       setTimeout(() => {
@@ -1386,7 +1421,6 @@
       div(c, 'row', `<button class="btn-sm">List them</button>`).querySelector('button').addEventListener('click', () => setDrill({ kind: 'list', title, items: rows,
         cols: [{ key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }].concat(rows[0].po !== undefined ? [{ key: 'po', label: 'PO' }] : []).concat(vlab ? [{ key: 'v', label: vlab, num: true, f: v => fmt(v, 1) }] : []) }));
     }
-    drillCard(host);
   }
 
   /* ─── PERF-BANDS helpers ──────────────────────────────────────────────── */
@@ -1505,11 +1539,12 @@
     const total = rows.length;
     rows = rows.slice(0, hs.rows);
     div(host, 'view-intro', `<h2>MRP activity by material</h2><p>Each row a material, each column a week. <b>Amber</b> = days that week the part sat below its trigger line with nothing on order (darker = more days). <b>Cyan dot</b> = an MRP-created PR that week, <b>violet diamond</b> = a manual PR. An MRP gap shows as an amber run with no dots; manual diamonds on amber show people covering for MRP. Click a row to open its deep-dive.</p>`);
-    const c = card(host, `${fmt(rows.length)} of ${fmt(total)} active materials · ${fmt(nW)} weeks`, `Window: ${esc(iso(a))} → ${esc(iso(b))}. Only materials with a PR or an exposed day in the window are listed.`,
+    const c = card(host, 'Materials by week', 'Only materials with a PR or an exposed day in the window are listed. Click a row to open its deep-dive.',
       `<span class="seg-lab">Sort</span><select data-hsort>${Object.entries(sorts).map(([k, v]) => `<option value="${k}" ${hs.sort === k ? 'selected' : ''}>${esc(v[0])}</option>`).join('')}</select>
        <span class="seg-lab">Rows</span>${[40, 80, 150].map(n => `<button class="btn-sm ${hs.rows === n ? 'on' : ''}" data-hrows="${n}">${n}</button>`).join('')}`);
     c.querySelector('[data-hsort]').addEventListener('change', (e) => { hs.sort = e.target.value; renderView(); });
     c.querySelectorAll('[data-hrows]').forEach(bt => bt.addEventListener('click', () => { hs.rows = +bt.dataset.hrows; renderView(); }));
+    cap(c, `Showing <b>${fmt(rows.length)}</b> of ${fmt(total)} active materials · <b>${fmt(nW)}</b> weeks · ${esc(iso(a))} → ${esc(iso(b))}`);
     div(c, null, C.legend([{ label: 'Below the line, nothing on order (days / week)', color: '#FBBF24', opacity: .75 }, { label: 'MRP-created PR', color: C.PAL.s1 }, { label: 'Manual PR', color: C.PAL.s2 }]));
     const hostEl = div(c, 'chart heatwrap');
     if (!rows.length) { hostEl.innerHTML = '<div class="pc-empty">No PR or exposed day in this segment and window.</div>'; return; }

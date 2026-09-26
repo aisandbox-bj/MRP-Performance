@@ -121,3 +121,8 @@
   max-height:min(72vh, 680px); overflow:auto;
 }
 .seg-foot{ display:flex; justify-content:flex-end; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-soft); }
+
+/* PERF-NO-SHIFT — room under the page while the drill panel is docked, kept
+   until the view changes so closing the panel never pulls the page down */
+.wb-shell{ padding-bottom:calc(80px + var(--dock-pad, 0px)); }
+.parity-out{ height:56px; overflow:auto; }

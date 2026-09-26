@@ -31,6 +31,9 @@
   const OPEN_OPACITY = 0.38;
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]); }
+  /* PERF-NO-SHIFT — an empty chart keeps the chart's height, so switching to a
+     selection with no data never moves what sits below it */
+  function emptyBox(H, msg){ return `<div class="pc-empty" style="height:${H}px;box-sizing:border-box;display:flex;align-items:center;justify-content:center">${esc(msg)}</div>`; }
   function fmt(n){ return n == null ? '—' : Math.round(n).toLocaleString(); }
 
   /* nice axis ticks */
@@ -218,7 +221,7 @@
     const padL = 46, padR = 16, padT = 22, padB = 52;
     const pw = W - padL - padR, ph = H - padT - padB;
     const gs = o.groups.filter(g => g.q && g.q[0.5] != null);
-    if (!o.groups.length) { host.innerHTML = '<div class="pc-empty">No items in this selection.</div>'; return; }
+    if (!o.groups.length) { host.innerHTML = emptyBox(H, 'No items in this selection.'); return; }
     const vals = [];
     for (const g of gs) { vals.push(g.q[0.1], g.q[0.9]); if (g.qAll && g.qAll[0.9]) vals.push(g.qAll[0.9].v); }
     if (o.target != null) vals.push(o.target);
@@ -390,7 +393,7 @@
     const padL = 46, padR = 16, padT = 20, padB = 52;
     const pw = W - padL - padR, ph = H - padT - padB;
     const gs = o.groups;
-    if (!gs.length) { host.innerHTML = '<div class="pc-empty">No closed items in this selection.</div>'; return; }
+    if (!gs.length) { host.innerHTML = emptyBox(H, 'No closed items in this selection.'); return; }
     const vals = [];
     for (const g of gs) { if (g.q && g.q[0.5] != null) vals.push(g.q[0.1], g.q[0.9], g.mean); }
     if (o.target != null) vals.push(o.target);

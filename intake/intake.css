@@ -303,6 +303,20 @@
 }
 .schema-group:not(.collapsed) .schema-group-head .chev{ transform:rotate(90deg); color:var(--accent); }
 .schema-group.collapsed .schema-row{ display:none; }
+/* PERF-NO-SHIFT — a fully-mapped file's rows open OVER the page, not in the flow */
+.schema-group.pops{ overflow:visible; position:relative; }
+.schema-group.pops.popped{ z-index:60; }
+.step:has(.schema-group.popped){ overflow:visible; }   /* let the open list float out of its step */
+.schema-group.pops.popped .schema-row{ display:grid; }
+.schema-group.pops.popped .schema-pop{
+  position:absolute; left:-4px; right:-1px; top:100%; z-index:60;
+  max-height:60vh; overflow:auto; background:var(--bg-panel);
+  border:1px solid var(--border-strong); border-radius:0 0 var(--r-sm) var(--r-sm);
+  box-shadow:0 14px 34px rgba(0,0,0,.55);
+}
+.schema-group.pops.popped .schema-group-head .chev{ transform:rotate(90deg); color:var(--accent); }
+.schema-group-head.fixed-open{ cursor:default; }
+.schema-group-head.fixed-open:hover{ background:rgba(31,206,216,0.05); }
 
 .schema-row{
   display:grid;

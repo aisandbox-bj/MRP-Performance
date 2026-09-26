@@ -110,3 +110,35 @@
 .chip button:hover{ background:none; color:var(--text-pri); }
 
 .toast{ position:fixed; }
+
+/* ─── PERF-NO-SHIFT — nothing on the page moves when a button is clicked ───── */
+/* one fixed-height status line: what a card is showing right now (counts,
+   the focused period, the zoom) — changes text, never height */
+.card-cap{ height:20px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; color:var(--text-sec); margin:-2px 0 6px; }
+.card-cap b{ color:var(--text-pri); font-weight:600; }
+.card-cap .muted{ color:var(--text-muted); }
+.card-cap button{ padding:0 6px; margin-left:4px; border:1px solid var(--border-strong); font-size:11px; line-height:16px; color:var(--accent); background:rgba(31,206,216,.05); }
+.card-cap button:hover{ color:var(--text-pri); }
+/* a table view that opens over its chart instead of below it */
+.swapbox{ position:relative; }
+.swap-table{ position:absolute; inset:0; overflow:auto; z-index:3; background:var(--chart-surface); border:1px solid var(--border-strong); box-shadow:0 8px 22px rgba(0,0,0,.35); }
+.swap-table .tblwrap{ max-height:none; border:none; }
+/* tables whose rows change with a picker or tab keep one height */
+.tblwrap.fixed{ height:340px; max-height:none; }
+.tblwrap.fixed.tall{ height:520px; }
+/* panel docked to the bottom of the screen, over the page */
+.dock{ position:fixed; left:16px; right:16px; bottom:0; height:44vh; min-height:160px; z-index:880; display:flex; flex-direction:column;
+  background:var(--bg-panel); border:1px solid var(--border-strong); border-bottom:none; border-radius:var(--r-md) var(--r-md) 0 0;
+  box-shadow:0 -12px 34px rgba(0,0,0,.55); }
+.dock.hidden{ display:none; }
+.dock-grip{ height:8px; cursor:ns-resize; flex-shrink:0; position:relative; }
+.dock-grip::after{ content:''; position:absolute; left:50%; top:3px; width:44px; height:3px; margin-left:-22px; border-radius:2px; background:var(--border-strong); }
+.dock-h{ display:flex; align-items:center; gap:12px; padding:2px 14px 8px; flex-shrink:0; }
+.dock-t{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--font-heading); font-weight:600; font-size:15px; color:var(--text-pri); }
+.dock-t small{ font-family:var(--font-body); font-weight:400; font-size:12px; color:var(--text-muted); margin-left:8px; }
+.dock-a{ display:flex; gap:6px; align-items:center; }
+.dock-b{ flex:1; min-height:0; overflow:auto; padding:0 14px 12px; display:flex; flex-direction:column; }
+.dock-b .tblwrap{ flex:1; min-height:0; max-height:none; }
+.dock.inspector{ left:auto; width:min(620px, calc(100vw - 32px)); height:auto; min-height:0; max-height:70vh; }
+.dock.inspector .dock-grip{ display:none; }
+.dock.inspector .dock-h{ padding-top:10px; }

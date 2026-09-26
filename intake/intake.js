@@ -733,6 +733,9 @@
         <div class="count" data-count></div>
       `;
       group.appendChild(head);
+      const pop = document.createElement('div');   // PERF-NO-SHIFT — the rows, in their own box
+      pop.className = 'schema-pop';
+      group.appendChild(pop);
 
       for (const field of fields) {
         const header  = parsed.fieldMap[field];
@@ -754,7 +757,7 @@
           <div class="header">${matched ? '' : '<em>not matched · </em>'}<select data-source="${source}" data-field="${field}">${opts}</select></div>
           <div class="ok">${matched ? '✓' : '!'}</div>
         `;
-        group.appendChild(row);
+        pop.appendChild(row);
       }
 
       const countEl = head.querySelector('[data-count]');
@@ -765,7 +768,21 @@
       // files start collapsed (short by default), any file with unmapped columns
       // auto-expands so a broken mapping is never hidden. Click the tile to toggle.
       group.classList.toggle('collapsed', unmatched === 0);
-      head.addEventListener('click', () => group.classList.toggle('collapsed'));
+      /* PERF-NO-SHIFT (operator 2026-09-25: clicking must not move the page) —
+         a fully-mapped file's rows open OVER the steps below (click outside or
+         Esc closes) instead of pushing them down. A file with unmapped columns
+         stays open in place, so a broken mapping is never hidden. */
+      if (unmatched === 0) {
+        group.classList.add('pops');
+        group.dataset.src = source;
+        if (state._schemaPop === source) group.classList.add('popped');
+        head.addEventListener('click', () => {
+          const open = !group.classList.contains('popped');
+          $$('.schema-group.popped').forEach(g => g.classList.remove('popped'));
+          if (open) group.classList.add('popped');
+          state._schemaPop = open ? source : null;
+        });
+      } else head.classList.add('fixed-open');
 
       host.appendChild(group);
     }
@@ -3057,6 +3074,10 @@
 
     // Keyboard hint: Esc clears toasts
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $$('.toast').forEach(t => t.remove()); });
+    /* PERF-NO-SHIFT — close an open mapping tile on Esc or a click outside it */
+    const closeSchemaPop = () => { $$('.schema-group.popped').forEach(g => g.classList.remove('popped')); state._schemaPop = null; };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSchemaPop(); });
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.schema-group.popped')) closeSchemaPop(); });
   });
 
 })();

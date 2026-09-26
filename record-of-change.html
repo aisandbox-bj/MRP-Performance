@@ -381,6 +381,30 @@ git -C peek push --force-with-lease origin main
 
   <div class="roc-list">
 
+    <!-- v0.2.0-dev follow-up - PERF-NO-SHIFT - 2026-09-25 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.2.0</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.2.0-dev follow-up — <b>Clicking a button no longer moves anything else on the page</b> (PERF-NO-SHIFT) — <b>browser-verified; pending operator validation</b></h4>
+      <ul>
+        <li><b>Operator ask:</b> "click through every button and identify every time clicking a button changes the position of other text" — the PR / PO toggle on the cadence chart shifted the text and boxes below it. An automated click-through (every button, picker, tab, table header, chart bar and breakdown row on every Workbench view, the material deep-dive and the Intake — each clicked with the control scrolled to mid-screen, at 1280 / 1541 / 1920 px wide, and the cadence toggles at every width from 640 to 1560 px) found and fixed:</li>
+        <li><b>Cadence PR / PO toggle</b> (the reported one): the card title and line count changed with the toggle, so at some screen widths the header wrapped to a second line and everything below dropped 38 px. The title and subtitle are now fixed; what is showing ("Showing POs raised per week, split by Outcome · 776 PO lines") sits in a one-line status strip that never changes height. Same for the heat map's row count.</li>
+        <li><b>Deep-dive: most clicks threw the page back towards the top</b> (range buttons, Month / Quarter, leg picker, Orders / Receipts, raw-data tabs, chain clicks) — the block stack was rebuilt empty and the browser lost the scroll position. Both pages now keep the scroll position through every re-draw.</li>
+        <li><b>▦ Table</b> pushed everything below the chart down ~480 px — the table now opens over the chart in the same box (▦ Chart swaps back) and stays open across re-draws.</li>
+        <li><b>Breakdown pickers / rows, deep-dive tabs</b> — tables that change rows with a picker or tab now keep one height and scroll inside.</li>
+        <li><b>Clicking a month / quarter in a band chart</b> added a chip to the card header (+5 px); the focused period now shows in the fixed status strip. The "Not in the chart: …" note is a fixed one-line strip too.</li>
+        <li><b>Drill lists</b> were added at the bottom of the page and the page scrolled to them — they now open in a panel docked to the bottom of the screen, over the page (drag its top edge to resize; ✕ / Esc closes). <b>Chain details</b> on the deep-dive open in a panel docked bottom-right instead of inserting under the timeline (and no longer switch the chains block on or scroll).</li>
+        <li><b>Deep-dive timeline</b> changed height with 12 m / 6 m / 3 m / zoom (fewer chains in range) — the chains block is now sized for all of the material's PR lines; the zoom state is a fixed status line instead of a chip in the header. A band chart with no data (e.g. against need-by without a Delivery Date) keeps the chart's height.</li>
+        <li><b>Over / under tabs</b> started their content 88 px apart — one intro now sits above both tabs. <b>Intake column mapping:</b> opening a file's mapping pushed the later steps down 660–1,440 px — it now opens over them (Esc / click outside closes); a file with unmapped columns stays open in place so a broken mapping is never hidden. The parity-check result has a reserved box.</li>
+        <li><b>Kept on purpose (navigation, not a shift):</b> choosing a view in the rail (or an Overview tile) scrolls to the top of the view; a row in the deep-dive's Trigger crossings / Order to Max tables zooms the timeline and scrolls up to it.</li>
+        <li>Presentation only — no change to any number, filter or saved data.</li>
+      </ul>
+      <div class="commit rollback"><b>Rollback.</b> Remote <code>backup/pre-PERF-NO-SHIFT</code> + <code>checkpoint/pre-PERF-NO-SHIFT</code>; local <code>_rollback/PERF-NO-SHIFT-pre/</code>.</div>
+    </article>
+
     <!-- v0.2.0-dev follow-up - PERF-FILTER-OVERLAY - 2026-09-25 -->
     <article class="roc-entry dev">
       <div class="head">

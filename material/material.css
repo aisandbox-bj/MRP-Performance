@@ -44,7 +44,6 @@
 
 .md-timeline{ width:100%; min-height:40px; }
 .md-legend .pc-legend{ margin-bottom:2px; }
-.md-chainsel{ margin-top:10px; border-top:1px solid var(--border-soft); padding-top:10px; }
 .chain-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:6px 14px; }
 .chain-grid div span{ display:block; font-family:var(--font-mono); font-size:9.5px; letter-spacing:1.1px; text-transform:uppercase; color:var(--text-muted); }
 .chain-grid div b{ font-size:13px; color:var(--text-pri); font-weight:500; }

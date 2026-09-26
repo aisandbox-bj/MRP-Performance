@@ -207,8 +207,18 @@
   }
 
   /* ─── render the stack ────────────────────────────────────────────────── */
+  /* PERF-NO-SHIFT (operator 2026-09-25): no click on this page moves the rest
+     of the page. The stack re-draws in place with the scroll position kept;
+     chain details open in a panel docked over the page; tables that change
+     with a tab keep one height; the time-axis card's zoom state is a
+     fixed-height status line. */
   function renderBlocks(){
-    const host = $('#mdBlocks'); host.innerHTML = '';
+    const host = $('#mdBlocks');
+    U.keepScroll(host, () => drawBlocks(host));
+    renderChainSel();
+  }
+  function drawBlocks(host){
+    host.innerHTML = '';
     C.hideTip();
     const on = st.layout.filter(x => x.on).map(x => x.id);
     let timeGroup = [];
@@ -260,12 +270,18 @@
     const presets = [['all', 'Whole window'], ['12m', '12 m'], ['6m', '6 m'], ['3m', '3 m']];
     c.innerHTML = `<div class="card-h"><div><div class="card-t">${esc(ids.map(i => BLK[i].label).join(' · '))}</div>
       <div class="card-s">One time axis — hover anywhere for that day. ${ids.includes('stock') ? 'Min / Max / SS are today\'s values. ▼ marks each crossing below the trigger line.' : ''}</div></div>
-      <div class="card-actions">${presets.map(([k, l]) => `<button class="btn-sm ${st.range.preset === k ? 'on' : ''}" data-r="${k}">${l}</button>`).join('')}
-      ${st.range.preset === 'zoom' ? `<span class="chip">zoomed ${esc(iso(st.model.window.start + st.range.a))} → ${esc(iso(st.model.window.start + st.range.b))} <button data-r="all" aria-label="Reset zoom">✕</button></span>` : ''}</div></div>
-      <div class="md-legend"></div><div class="md-timeline"></div><div class="md-chainsel hidden"></div>`;
+      <div class="card-actions">${presets.map(([k, l]) => `<button class="btn-sm ${st.range.preset === k ? 'on' : ''}" data-r="${k}">${l}</button>`).join('')}</div></div>
+      <div class="card-cap">${rangeCap()}</div>
+      <div class="md-legend"></div><div class="md-timeline"></div>`;
     c.querySelectorAll('[data-r]').forEach(b => b.addEventListener('click', () => { st.range = { preset: b.dataset.r, a: null, b: null }; renderBlocks(); }));
     drawTimeline(c, ids);
-    if (ids.includes('chains') && st.selChain) renderChainSel(c.querySelector('.md-chainsel'));
+  }
+  function rangeCap(){
+    const W0 = st.model.window.start, [a, b] = rangeIdx();
+    const span = `${esc(iso(W0 + a))} → ${esc(iso(W0 + b))}`;
+    if (st.range.preset === 'zoom') return `Zoomed to <b>${span}</b> <button data-r="all">✕ Show the whole window</button>`;
+    const lab = { all: 'the whole window', '12m': 'the last 12 months', '6m': 'the last 6 months', '3m': 'the last 3 months' }[st.range.preset] || '';
+    return `Showing <b>${lab}</b> · ${span} <span class="muted">· a row in Trigger crossings or Order to Max zooms onto that date</span>`;
   }
 
   function drawTimeline(cardEl, ids){
@@ -307,8 +323,13 @@
 
     /* layout, in the operator's order */
     let y = 10; const P = {};
-    const rowH = chainsVis.length > 60 ? 6 : 12;
-    const hOf = { stock: 230, cadence: 92, events: 60, consumption: 60, chains: Math.max(rowH, chainsVis.length * rowH) + 14 };
+    /* PERF-NO-SHIFT — the chains block is sized for ALL of this material's PR
+       lines, so switching range or zooming never changes the card's height
+       (fewer lines in range = taller rows with PR labels, then empty space) */
+    const nAll = st.chains.length, rowHAll = nAll > 60 ? 6 : 12;
+    const chainsH = Math.max(12, nAll * rowHAll);
+    const rowH = chainsVis.length * 12 <= chainsH ? 12 : rowHAll;
+    const hOf = { stock: 230, cadence: 92, events: 60, consumption: 60, chains: chainsH + 14 };
     for (const id of ids) { P[id] = { y, h: hOf[id] }; y += hOf[id] + (id === 'events' ? 12 : 22); }
     P.axis = { y: y - 8, h: 26 }; const H = y + 22;
     let g = '';
@@ -512,12 +533,15 @@
     for (const k of ['A', 'B', 'C', 'D', 'E2E']) { const x = c.st[k]; if (x.s === 'done' || x.s === 'open' || x.s === 'oos') rows.push({ value: (x.s === 'open' ? '≥ ' : '') + fmt(x.v) + ' d' + (x.s === 'oos' ? ' !' : ''), label: E.METRICS[k].label }); }
     return rows;
   }
-  function renderChainSel(host){
-    const c = st.selChain; if (!c || !host) return;
-    host.classList.remove('hidden');
+  let chainDock = null;
+  function renderChainSel(){
+    if (!chainDock) chainDock = U.dockPanel('mdChain', { cls: 'inspector', onClose: () => { st.selChain = null; renderBlocks(); } });
+    const c = st.selChain;
+    if (!c) { chainDock.close(); return; }
+    chainDock.open(`PR ${esc(c.pr)}${c.prItem ? ' / ' + esc(c.prItem) : ''}${c.po ? ' → PO ' + esc(c.po) : ''}<small>highlighted on the Procurement chains block</small>`);
+    const host = chainDock.body;
     const cell = (k) => { const x = c.st[k]; return x.s === 'done' ? fmt(x.v) + ' d' : x.s === 'open' ? '≥ ' + fmt(x.v) + ' d (open)' : x.s === 'oos' ? `<span class="amber">${fmt(x.v)} d — out of sequence</span>` : `<span class="muted">${esc(x.s)}</span>`; };
-    host.innerHTML = `<div class="card-h"><div class="card-t">PR ${esc(c.pr)}${c.prItem ? ' / ' + esc(c.prItem) : ''}${c.po ? ' → PO ' + esc(c.po) : ''}</div><div class="card-actions"><button class="btn-sm ghost" data-x>✕</button></div></div>
-      <div class="chain-grid">
+    host.innerHTML = `<div class="chain-grid">
         <div><span>Trigger</span><b>${esc(c.trig)}</b></div><div><span>Qty requested</span><b>${fmt(c.qty)}</b></div><div><span>Path</span><b>${esc(c.path)}</b></div>
         <div><span>PR created</span><b>${esc(iso(c.prD) || '—')}</b></div><div><span>Released</span><b>${esc(iso(c.relD) || '—')}</b></div><div><span>PO raised</span><b>${esc(iso(c.poD) || '—')}</b></div>
         <div><span>At 3PL (107)</span><b>${esc(iso(c.g107) || '—')}</b></div><div><span>At site (109)</span><b>${esc(iso(c.g109) || '—')}</b></div><div><span>First use</span><b>${esc(iso(c.use) || '—')}</b></div>
@@ -526,8 +550,8 @@
         <div><span>3PL</span><b>${cell('D')}</b></div><div><span>PR → site</span><b>${cell('E2E')}</b></div><div><span>vs need-by</span><b>${cell('PLAN')}</b></div>
         ${c.orderCtx ? `<div><span>Stock at PR</span><b>${fmt(c.orderCtx.sohStart, 1)}</b></div><div><span>Already on order</span><b>${fmt(c.orderCtx.pipeline, 1)}</b></div><div><span>Ordered ÷ gap to Max</span><b>${c.orderCtx.ratio == null ? 'at / above Max' : Math.round(c.orderCtx.ratio * 100) + '%'}</b></div>` : ''}
       </div>`;
-    host.querySelector('[data-x]').addEventListener('click', () => { st.selChain = null; renderBlocks(); });
   }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.selChain) { st.selChain = null; renderBlocks(); } });
 
   /* ═════════════════════════════════════════════════════════════════════════
      ANNUAL PROGRESSION — per year, the median of each leg end to end
@@ -559,7 +583,7 @@
     const c = card(host);
     const legs = ['AB', 'A', 'B', 'C', 'D', 'E2E', 'PLAN', 'E'];
     c.innerHTML = `<div class="card-h"><div><div class="card-t">Month-on-month · ${esc(E.METRICS[st.bandLeg].label)}</div>
-      <div class="card-s">Per ${st.bandGran}: white line = median, violet = mean (average), bands = P25–P75 and P10–P90 of closed chains. Hollow dots = provisional (still-open chains). n = closed chains. Narrowing bands = a more predictable leg.</div></div>
+      <div class="card-s">Per month or quarter: white line = median, violet = mean (average), bands = P25–P75 and P10–P90 of closed chains. Hollow dots = provisional (still-open chains). n = closed chains. Narrowing bands = a more predictable leg.</div></div>
       <div class="card-actions"><select data-leg aria-label="Leg">${legs.map(k => `<option value="${k}" ${k === st.bandLeg ? 'selected' : ''}>${esc(E.METRICS[k].label)}</option>`).join('')}</select>
       <button class="btn-sm ${st.bandGran === 'month' ? 'on' : ''}" data-g="month">Month</button><button class="btn-sm ${st.bandGran === 'quarter' ? 'on' : ''}" data-g="quarter">Quarter</button></div></div>
       <div class="pc-legend-host"></div><div class="chart"></div>`;
@@ -630,7 +654,7 @@
       el.style.cursor = 'pointer';
       el.addEventListener('pointermove', (e) => C.showTip(e, [{ value: (it.kind === 'open' ? '≥ ' : '') + fmt(it.v) + ' d', label: legs[r].M.label + (it.kind === 'oos' ? ' — out of sequence' : '') }, { value: iso(it.c.prD) || '—', label: 'PR created' }], `PR ${it.c.pr}`));
       el.addEventListener('pointerleave', C.hideTip);
-      el.addEventListener('click', () => { st.selChain = it.c; if (!st.layout.some(x => x.id === 'chains' && x.on)) { st.layout.find(x => x.id === 'chains').on = true; renderLayoutBar(); } renderBlocks(); const tc = $('#mdTimelineCard'); if (tc) tc.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      el.addEventListener('click', () => { st.selChain = it.c; renderBlocks(); });
     });
   }
 
@@ -672,7 +696,7 @@
         ? `At each PR that became a PO: gap to Max = Max − (stock that morning + already on order). ${fmt(orders.length)} orders · <b>${orders.length ? Math.round(toMax / orders.length * 100) : 0}%</b> sized to Max (90–110%). ${ro && ro.ratio != null ? `Reordered <b>${fmt(ro.actualPerYr, 1)}</b>×/yr vs <b>${fmt(ro.expectedPerYr, 1)}</b>×/yr the Min–Max band implies (${fmt(ro.ratio, 2)}×).` : ''}`
         : 'Order-to-Max applies to V1 parts only. Site receipts with stock before and after:'}</div></div>
       <div class="card-actions"><button class="btn-sm ${tab === 'o' ? 'on' : ''}" data-t="o" ${isV1 ? '' : 'disabled'}>Orders</button><button class="btn-sm ${tab === 'r' ? 'on' : ''}" data-t="r">Receipts</button></div></div>
-      <div class="tblwrap"></div>`;
+      <div class="tblwrap fixed"></div>`;
     const t = c.querySelector('.tblwrap');
     c.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { st.sizeTab = b.dataset.t; renderBlocks(); }));
     if (tab === 'o') U.renderTable(t, {
@@ -707,7 +731,7 @@
     const tabs = [['pr', `PR lines (${st.chains.length})`], ['mb', `MB51 ledger (${st.mbRows.length})`], ['po', 'Receipts by PO']];
     c.innerHTML = `<div class="card-h"><div><div class="card-t">Raw data</div><div class="card-s">The rows behind everything above. The MB51 ledger shows each movement's effect on site stock and the rebuilt stock at the end of each day.</div></div>
       <div class="card-actions">${tabs.map(([k, l]) => `<button class="btn-sm ${st.rawTab === k ? 'on' : ''}" data-raw="${k}">${esc(l)}</button>`).join('')}</div></div>
-      <div class="tblwrap" style="max-height:520px"></div>`;
+      <div class="tblwrap fixed tall"></div>`;
     c.querySelectorAll('[data-raw]').forEach(b => b.addEventListener('click', () => { st.rawTab = b.dataset.raw; renderBlocks(); }));
     const host = c.querySelector('.tblwrap');
     if (st.rawTab === 'pr') {
@@ -722,7 +746,7 @@
           ...['A', 'B', 'C', 'D', 'E2E'].map(k => ({ key: k, label: k === 'E2E' ? 'PR→site' : E.METRICS[k].label.split(' (')[0], num: true, sv: r => r[k] == null ? null : (r[k].v != null ? r[k].v : r[k]), f: v => v == null ? '—' : (typeof v === 'object' ? '≥ ' + fmt(v.v) : fmt(v)) })),
           { key: 'path', label: 'Path', cls: 'wrap' }],
         sort: { key: 'prD', dir: -1 }, csv: `${st.mat}-pr-lines`,
-        onRow: (r) => { st.selChain = r.c; const ch = st.layout.find(x => x.id === 'chains'); if (!ch.on) { ch.on = true; renderLayoutBar(); } renderBlocks(); const tc = $('#mdTimelineCard'); if (tc) tc.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        onRow: (r) => { st.selChain = r.c; renderBlocks(); }
       });
     } else if (st.rawTab === 'mb') {
       const W0 = st.model.window.start, N = st.model.window.days;
