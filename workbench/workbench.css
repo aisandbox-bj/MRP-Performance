@@ -143,3 +143,9 @@
 .card.fixed-head .card-actions{ margin-left:0; flex-wrap:nowrap; }
 .stats.fixed .stat .v{ white-space:nowrap; }
 .stats.fixed .stat .d{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; height:calc(2 * 1.35em); }
+/* MIRROR-FILTER2 — include / exclude */
+.btn-sm.chk.excl{ border-color:var(--status-warn); color:var(--status-warn); background:rgba(251,191,36,.06); }
+.dq-pick{ display:inline-flex; align-items:center; gap:3px; }
+.dq-not{ padding:4px 7px; min-width:52px; }
+.dq-not.on{ border-color:var(--status-warn); color:var(--status-warn); }
+.tile-sep{ width:1px; align-self:stretch; background:var(--border-soft); margin:0 2px; }

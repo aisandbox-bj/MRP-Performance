@@ -381,6 +381,24 @@ git -C peek push --force-with-lease origin main
 
   <div class="roc-list">
 
+    <!-- v0.3.0-dev follow-up - MIRROR-FILTER2 - 2026-09-26 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.3.0</span>
+        <span class="date">2026-09-26</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.3.0-dev follow-up — <b>Include or exclude on every filter · over-stocked · SAP need-by toned down</b> (MIRROR-FILTER2) — <b>browser-verified; pending operator validation</b></h4>
+      <ul>
+        <li><b>Include / exclude</b> (operator: "sometimes you want to exclude them, other times drill into them"): every drill quick filter cycles off → ☑ only these → ☒ exclude these; the created-by / MRP type / supplier pickers have an <b>is / is not</b> switch; number segment tiles (quartile, top %, range) gain <b>Include / Exclude</b> like the pick-list tiles already had.</li>
+        <li><b>Over-stocked</b>: new engine fields <code>cons12Qty</code> (net use in the 12 months to the data date) and <code>monthsCover</code> (stock on hand ÷ average monthly use; empty = not moving). New drill filter <i>Over-stocked (&gt; 12 mo)</i> (threshold in ⚙ Settings), new segment tile <i>Months of cover</i> (None = not moving), <i>Cover (mo)</i> column on screen and in Excel. Verified: on a 306-line bucket, only over-stocked 43 lines / 31 materials + excluding 263 / 105 = all 306 / 136; segment tile ≥ 12 mo 90 + excluded 155 = 245 (the segment total).</li>
+        <li><b>SAP need-by toned down</b> (operator: leave it as a filter, don't over-emphasise it): the filter is last and labelled <i>Past SAP need-by</i>; the Overdue column is off the screen tables (kept as the last Excel column, "indicative"); the need-by leg is no longer an Overview headline; the view is renamed <i>Process paths · SAP need-by</i>.</li>
+        <li><b>Reservations shown, not yet used</b>: the Inventory Master's <i>Reserved</i> and <i>Open PO qty</i> (as of its extract) are carried through and shown in the Materials list and Excel. They are <b>not</b> used in any trigger or stock-status calculation yet — the net-stock formula waits for the operator (the data shows the IM's open-PO quantity already includes goods at the 3PL on several materials, so adding both would double-count).</li>
+        <li>Layout-shift audit clean on the Mirror; zero console errors.</li>
+      </ul>
+      <div class="commit rollback"><b>Rollback.</b> Remote <code>backup/pre-MIRROR-FILTER2</code> + <code>checkpoint/pre-MIRROR-FILTER2</code>.</div>
+    </article>
+
     <!-- v0.3.0-dev - MIRROR - 2026-09-26 -->
     <article class="roc-entry dev">
       <div class="head">

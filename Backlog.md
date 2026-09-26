@@ -3,6 +3,17 @@
 ## ✅ SHIPPED — v0.3.0-dev (2026-09-26) — slice 1 of the operator's Mirror plan · browser-verified, pending operator validation
 **The Mirror loop** (operator's thoughts, 2026-09-26 — saved verbatim in the project's `_Hand-over docs/Calibre Mirror - operator thoughts 2026-09-26.md`): phase box-and-whisker (completed solid, in flight hatched; stretched log scale by default, even days on request) → click a phase → its histogram with **Completed / In flight** switches → click a bar → drill list with quick filters (overdue vs need-by · below Min / SS now · stocked out now · continuous use = issued in ≥ 6 of the last 12 months · created by · MRP type · supplier · days ≥ N) → PR / PO lines ⇄ Materials → **Excel** (Lines · Materials · About). Rename to Calibre Mirror (repo `Calibre-Mirror`).
 
+## ✅ SHIPPED — MIRROR-FILTER2 (2026-09-26, v0.3.0-dev follow-up)
+Include / exclude on every quick filter (☑ only · ☒ exclude · off) and is / is not on the pickers; Include / Exclude on number segment tiles; over-stocked (months of cover > 12, setting) as a filter + segment tile; SAP need-by toned down (last filter, off-screen column, not an Overview headline); IM Reserved / Open PO shown (not yet used in maths).
+
+## DECISION NEEDED — net stock with reservations (operator 2026-09-26: "net stock = OH + 3PL + PO − RSV; OH → Min should include RSV")
+- Today's snapshot is possible from the Inventory Master (Tot Qty OH, Blocked Stock = at 3PL, Open PO, Total Reservation). Evidence (June set, 331 materials): IM blocked stock = MB51 107-without-109 on 314; IM open PO appears to **include** the goods already at the 3PL (e.g. 1003166 open PO 422 = 341 on order + 81 at 3PL) → net = OH + open PO − reserved, not + blocked as well. SAP MRP also counts open PRs as receipts in its own check.
+- History (every day in the window) needs a reservation extract (MB25 / RESB: material, qty, withdrawn qty, created date, requirement date, final-issue and deletion flags). Without it, crossings stay on-hand based (conservative — they miss days where on hand ≥ Min but net < Min).
+
+## NEXT — MRP cadence per material (operator 2026-09-26) — fold into slice 2
+- **Dead periods:** a run of ≥ 14 days (setting) below the trigger line with nothing on order and no PR. Classify: **site-wide quiet** (no MRP PR for any material in that stretch → MRP likely not run) vs **this material only** (MRP created PRs for other parts meanwhile → MRP ran but did not act for this part: settings, planning file, MRP type). Per-material list + drill to the deep-dive.
+- **PR bursts:** ≥ 2 PRs for the same material within 7 days (setting) — MRP vs manual mix, how many became POs / were cancelled, total qty vs Max − Min.
+
 ## NEXT — slice 2 · Aged POs and open PRs (operator 2026-09-26)
 - **Aged POs** as a PO-level list (the PO is the tracking document), two sets: **with the supplier** (PO placed, no 107) and **blocked stock** (107, no 109 — at the 3PL). Age to the data date; 3PL tail (the "5–10 days typical, some 6 weeks+" case).
 - **Open PRs** (no PO): days open to the data date; open PRs per material; flag **superseded** — a later PR on the same material became a PO whose qty covers it — vs genuinely stuck.

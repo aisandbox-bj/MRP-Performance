@@ -245,6 +245,7 @@
       let consQty = 0;                      // net consumption in window (for reorder frequency)
       let consEvents = 0;                   // consumption movements (261 / 201 …) in window — segment attribute
       const consMonthSet = new Set();       // MIRROR-DRILL — calendar months with an issue in the 12 months to "as of"
+      let cons12Qty = 0;                    // MIRROR-COVER — net consumption in the 12 months to "as of" (months of cover)
       const deltas = new Float64Array(N);   // site-stock delta per day (MVT_SIGN / directional)
       let description = '';
       for (const r of mbRows) {
@@ -260,7 +261,10 @@
           if (mt === '109') { if (e.f109 == null || d < e.f109) e.f109 = d; e.r109.push({ d, q }); }
         }
         if (mt === '261' && d != null) cons261.push(d);
-        if (d != null && CONS_ISSUE.has(mt) && d > asOf - 365 && d <= asOf) consMonthSet.add(ym(d));
+        if (d != null && d > asOf - 365 && d <= asOf) {
+          if (CONS_ISSUE.has(mt)) { consMonthSet.add(ym(d)); cons12Qty += Math.abs(num(r.quantity) || 0); }
+          else if (CONS_REV.has(mt)) cons12Qty -= Math.abs(num(r.quantity) || 0);
+        }
         if (d == null) continue;
         /* stock delta — identical rule to InventoryBackCalc.backCalcSOH */
         const qRaw = num(r.quantity);
@@ -300,9 +304,17 @@
         materialGroup: (im && (trim(im.materialGroupDesc) || trim(im.materialGroup))) || '(none)',
         purchasingGroup: (im && trim(im.purchasingGroup)) || (prRows[0] && trim(prRows[0].purchasingGroup)) || '(none)',
         blockedStock: im ? num(im.blockedStock) : null,
+        /* MIRROR-COVER — Inventory Master snapshot fields (as of its extract date),
+           shown alongside; NOT yet used in any trigger or stock-status maths —
+           the net-stock formula waits for the operator's confirmation */
+        openPoIm: im ? num(im.openPO) : null, reservedIm: im ? num(im.totalReservation) : null,
         hasIm: !!im,
         /* segment attributes (material-level, window-based) */
         consQty, consEvents, consMonths12: consMonthSet.size,   // MIRROR-DRILL — "continuous consumption" = issued in ≥ 6 of the last 12 months
+        cons12Qty: Math.max(0, cons12Qty),
+        /* MIRROR-COVER — months of cover = on hand ÷ average monthly use over the last
+           12 months; null = not moving (no net use in 12 months) or no stock figure */
+        monthsCover: (soh != null && cons12Qty > 0) ? soh / (cons12Qty / 12) : null,
         consPerYr: consQty / (N / 365),
         consValuePerYr: (im && num(im.movingAvgPrice) != null) ? (consQty / (N / 365)) * num(im.movingAvgPrice) : null,
         stockValue: (im && num(im.movingAvgPrice) != null && soh != null) ? soh * num(im.movingAvgPrice) : null,

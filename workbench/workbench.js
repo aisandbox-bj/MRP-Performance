@@ -29,7 +29,7 @@
   /* ─── state ─────────────────────────────────────────────────────────────── */
   const state = {
     json: null, model: null,
-    settings: Object.assign({}, E.DEFAULT_SETTINGS, { targets: {} }),
+    settings: Object.assign({}, E.DEFAULT_SETTINGS, { targets: {}, overMonths: 12 }),
     view: 'mirror',               // MIRROR — the phase box plots are the landing view
     sub: { internal: 'AB', overunder: 'receipts' },
     tiles: [],                     // segment tiles
@@ -46,7 +46,7 @@
     mirrorPhase: 'E2E',          // MIRROR-BOX — the phase whose histogram shows under the box plots
     mirrorScale: 'log',          // MIRROR-BOX — 'log' (default: short and long phases both readable) | 'lin'
     show: { done: true, open: true },   // MIRROR-HIST — Completed / In flight switches on every histogram
-    dq: { overdue: false, below: false, out: false, cont: false, trig: '', mrp: '', mfr: '', minDays: '', mode: 'lines' },   // MIRROR-DRILL — quick filters on the drill list (kept across drills)
+    dq: { below: '', out: '', over: '', cont: '', overdue: '', trig: '', trigNot: false, mrp: '', mrpNot: false, mfr: '', mfrNot: false, minDays: '', mode: 'lines' },   // MIRROR-DRILL — quick filters on the drill list (kept across drills). Chips: '' off · 'in' only these · 'out' exclude these
     matPass: null, matCount: 0,
     quartileCache: new Map()
   };
@@ -62,6 +62,7 @@
     { key: 'unitCost',   label: 'Unit cost',              hint: 'moving average price',           type: 'num', get: i => i.map, money: true },
     { key: 'stockValue', label: 'Stock value today',      hint: 'on hand × unit cost',            type: 'num', get: i => i.stockValue, money: true },
     { key: 'soh',        label: 'Stock on hand today',    hint: 'Inventory Master',               type: 'num', get: i => i.soh, unit: 'units' },
+    { key: 'cover',      label: 'Months of cover',        hint: 'on hand ÷ average monthly use, last 12 months', type: 'num', get: i => i.monthsCover, unit: 'mo', noneLabel: 'not moving — no use in the last 12 months' },
     { key: 'leadTime',   label: 'Material lead time',     hint: 'median PR → site, days',         type: 'num', get: i => i.medE2E, unit: 'd' },
     { key: 'prCount',    label: 'PR lines',               hint: 'requisitions in the file',        type: 'num', get: i => i.nPr, unit: 'PRs' },
     { key: 'manufacturer', label: 'Manufacturer (supplier)', hint: 'stands in for vendor',       type: 'cat', get: i => i.manufacturer },
@@ -95,7 +96,7 @@
   function newTile(dimKey){
     const d = DIM[dimKey];
     const t = { id: tileSeq++, dim: dimKey, open: true };
-    if (d.type === 'num') Object.assign(t, { mode: 'quartile', q: [4], none: false, topMode: 'top', topPct: 20, min: null, max: null });
+    if (d.type === 'num') Object.assign(t, { mode: 'quartile', q: [4], none: false, topMode: 'top', topPct: 20, min: null, max: null, exclude: false });
     if (d.type === 'cat') Object.assign(t, { values: [], exclude: false, search: '' });
     if (d.type === 'text') Object.assign(t, { text: '' });
     if (d.type === 'chain') Object.assign(t, { values: ['MRP'] });
@@ -114,10 +115,17 @@
       const hit = t.values.includes(d.get(info));
       return t.exclude ? !hit : hit;
     }
+    /* MIRROR-FILTER2 — a number tile can also EXCLUDE what it describes
+       (e.g. Months of cover > 12 → leave the over-stocked parts out) */
+    if (!numConstrained(t)) return true;
+    const hit = numHit(t, d, info);
+    return t.exclude ? !hit : hit;
+  }
+  function numConstrained(t){ return t.mode === 'quartile' ? (t.q.length > 0 || !!t.none) : t.mode === 'top' ? true : (t.min != null || t.max != null); }
+  function numHit(t, d, info){
     const v = d.get(info);
     const isNone = v == null || !Number.isFinite(v) || (d.zeroNone && v <= 0);
     if (t.mode === 'quartile') {
-      if (!t.q.length && !t.none) return true;
       if (isNone) return !!t.none;
       const c = quartileCuts(d);
       const qi = v <= c.q1 ? 1 : v <= c.q2 ? 2 : v <= c.q3 ? 3 : 4;
@@ -138,6 +146,10 @@
     if (d.type === 'chain') return t.values.length ? t.values.join(' · ') : 'any';
     if (d.type === 'text') return t.text ? `contains “${t.text}”` : 'any';
     if (d.type === 'cat') return !t.values.length ? 'any' : (t.exclude ? 'all except ' : '') + (t.values.length <= 2 ? t.values.join(' · ') : t.values.length + ' selected');
+    if (d.type === 'num' && t.exclude && numConstrained(t)) return 'all except ' + numSummary(t, d);
+    return numSummary(t, d);
+  }
+  function numSummary(t, d){
     if (t.mode === 'quartile') {
       const c = quartileCuts(d);
       const lab = { 1: 'Q1 (lowest 25%)', 2: 'Q2', 3: 'Q3', 4: 'Q4 (top 25%)' };
@@ -214,7 +226,7 @@
   ═════════════════════════════════════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', boot);
   async function boot(){
-    try { const s = await AppStorage.get('settings.perf'); if (s) state.settings = Object.assign({}, E.DEFAULT_SETTINGS, { targets: {} }, s); } catch (e) {}
+    try { const s = await AppStorage.get('settings.perf'); if (s) state.settings = Object.assign({}, E.DEFAULT_SETTINGS, { targets: {}, overMonths: 12 }, s); } catch (e) {}
     try { const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (u) { state.view = u.view || state.view; state.period = u.period || state.period; state.gran = u.gran || state.gran; } } catch (e) {}
     /* PERF-DEEPDIVE — coming back from a material deep-dive: restore exactly
        the view, segment tiles, window and toggles this tab left with. */
@@ -227,7 +239,7 @@
       if (ws.mirrorPhase && E.METRICS[ws.mirrorPhase]) state.mirrorPhase = ws.mirrorPhase;
       if (ws.mirrorScale === 'lin' || ws.mirrorScale === 'log') state.mirrorScale = ws.mirrorScale;
       if (ws.show) state.show = { done: ws.show.done !== false, open: ws.show.open !== false };
-      if (ws.dq) state.dq = Object.assign(state.dq, ws.dq);
+      if (ws.dq) { state.dq = Object.assign(state.dq, ws.dq); for (const k of ['below', 'out', 'over', 'cont', 'overdue']) { if (state.dq[k] === true) state.dq[k] = 'in'; if (state.dq[k] === false) state.dq[k] = ''; } }
       if (Array.isArray(ws.tiles)) { state.tiles = ws.tiles.map(t => Object.assign({}, t, { open: false })); tileSeq = state.tiles.reduce((mx, t) => Math.max(mx, (t.id || 0) + 1), 1); }
     }
     $('#btnLoadJson').addEventListener('click', () => $('#loadJsonInput').click());
@@ -441,10 +453,13 @@
       body = `
         <div class="tile-modes">
           ${[['quartile', 'Quartile'], ['top', 'Top / bottom %'], ['range', 'Range']].map(([k, l]) => `<button class="btn-sm ${t.mode === k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}
+          <span class="tile-sep"></span>
+          <button class="btn-sm ${!t.exclude ? 'on' : ''}" data-excl="0" title="keep only the materials this tile describes">Include</button>
+          <button class="btn-sm ${t.exclude ? 'on' : ''}" data-excl="1" title="leave out the materials this tile describes">Exclude</button>
         </div>
         <div class="tile-b ${t.mode === 'quartile' ? '' : 'hidden'}" data-pane="quartile">
           <div class="qgrid">${qRow}</div>
-          ${d.zeroNone ? `<label class="qbox none"><input type="checkbox" data-none="1" ${t.none ? 'checked' : ''}/> <b>None</b><span>no ${esc(d.hint)} in the window</span></label>` : ''}
+          ${d.zeroNone || d.noneLabel ? `<label class="qbox none"><input type="checkbox" data-none="1" ${t.none ? 'checked' : ''}/> <b>None</b><span>${esc(d.noneLabel || 'no ' + d.hint + ' in the window')}</span></label>` : ''}
           <div class="muted-note">Quartiles are cut across all ${fmt(c.n)} materials with a value${d.zeroNone ? ' above zero' : ''} — not just the current segment — so they stay put as you add tiles.</div>
         </div>
         <div class="tile-b ${t.mode === 'top' ? '' : 'hidden'}" data-pane="top">
@@ -532,7 +547,7 @@
     { key: 'supplier',  label: 'Supplier · PO → 3PL',             group: 'Process legs' },
     { key: 'threepl',   label: '3PL · 3PL → site',                group: 'Process legs' },
     { key: 'e2e',       label: 'End to end · PR → site',          group: 'Process legs' },
-    { key: 'plan',      label: 'Against plan & process paths',    group: 'Process legs' },
+    { key: 'plan',      label: 'Process paths · SAP need-by',     group: 'Process legs' },
     { key: 'sizing',    label: 'Order sizing (V1)',               group: 'Stock outcomes' },
     { key: 'overunder', label: 'Over / under ordering',           group: 'Stock outcomes' },
     { key: 'checks',    label: 'Data checks & assumptions',       group: 'Data' }
@@ -817,24 +832,36 @@
      a PR / PO lines ⇄ Materials switch (the PO is the tracking document), and
      an Excel export of exactly what is showing, with an About sheet. */
   const STOCK_LOW = new Set(['below Min', 'below SS', 'stocked out']);
-  function dqActive(){ const q = state.dq; return q.overdue || q.below || q.out || q.cont || q.trig || q.mrp || q.mfr || (q.minDays !== '' && q.minDays != null); }
+  function dqActive(){ const q = state.dq; return !!(q.overdue || q.below || q.out || q.over || q.cont || q.trig || q.mrp || q.mfr || (q.minDays !== '' && q.minDays != null)); }
+  /* MIRROR-FILTER2 — every quick filter can keep ONLY what it describes or
+     EXCLUDE it: a chip cycles off → ☑ only these → ☒ exclude these → off; the
+     pickers have an is / is not switch. */
+  const triPass = (mode, cond) => !mode || (mode === 'in' ? cond : !cond);
+  const DQ_CHIPS = [
+    ['below', 'Below Min / SS now', "today's stock on hand is below Min (V1) or SS (PD), or at zero"],
+    ['out', 'Stocked out now', "today's stock on hand is zero"],
+    ['over', 'Over-stocked', 'moving parts whose stock on hand covers more than the over-stock threshold (⚙ Settings, default 12 months) of their average use in the last 12 months'],
+    ['cont', 'Continuous use', 'issued in at least 6 of the last 12 months']
+  ];
   function drillRows(d){
     const spec = DRILL_SPECS[d.kind];
     const all = d.items.map(it => spec.row(it, d));
     const hasMat = all.length > 0 && all[0].material !== undefined;
     const isChain = d.kind === 'chains';
     const q = state.dq, minD = q.minDays === '' || q.minDays == null ? null : +q.minDays;
+    const overM = state.settings.overMonths || 12;
     const pass = (r) => {
       if (!hasMat) return true;
       const i = mInfo(r.material);
-      if (q.below && !(STOCK_LOW.has(i.stockStatus) || (i.soh != null && i.soh <= 0))) return false;
-      if (q.out && !(i.soh != null && i.soh <= 0)) return false;
-      if (q.cont && !((i.consMonths12 || 0) >= 6)) return false;
-      if (q.mrp && (i.mrpType || '') !== q.mrp) return false;
-      if (q.mfr && (i.manufacturer || '') !== q.mfr) return false;
+      if (!triPass(q.below, STOCK_LOW.has(i.stockStatus) || (i.soh != null && i.soh <= 0))) return false;
+      if (!triPass(q.out, i.soh != null && i.soh <= 0)) return false;
+      if (!triPass(q.over, i.monthsCover != null && i.monthsCover > overM)) return false;
+      if (!triPass(q.cont, (i.consMonths12 || 0) >= 6)) return false;
+      if (q.mrp && ((i.mrpType || '') === q.mrp) === !!q.mrpNot) return false;
+      if (q.mfr && ((i.manufacturer || '') === q.mfr) === !!q.mfrNot) return false;
       if (isChain) {
-        if (q.overdue && !(r.overdue > 0)) return false;
-        if (q.trig && r.trig !== q.trig) return false;
+        if (!triPass(q.overdue, r.overdue > 0)) return false;
+        if (q.trig && (r.trig === q.trig) === !!q.trigNot) return false;
         if (minD != null && !(r.v != null && r.v >= minD)) return false;
       }
       return true;
@@ -848,7 +875,7 @@
       if (!e) {
         const i = mInfo(r.material);
         e = { material: r.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, stock: i.stockStatus, soh: i.soh, min: i.min, max: i.max, ss: i.ss,
-              cons12: i.consMonths12, consYr: i.consPerYr, cost: i.map, lines: 0, inflight: 0, oldest: null, longest: null, overdueN: 0, maxOverdue: null, prs: [], pos: [] };
+              cover: i.monthsCover, rsv: i.reservedIm, openPo: i.openPoIm, cons12: i.consMonths12, consYr: i.consPerYr, cost: i.map, lines: 0, inflight: 0, oldest: null, longest: null, overdueN: 0, maxOverdue: null, prs: [], pos: [] };
         by.set(r.material, e);
       }
       e.lines++;
@@ -864,10 +891,11 @@
   }
   const MAT_COLS = (isChain) => [
     { key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }, { key: 'mfr', label: 'Manufacturer' }, { key: 'mrp', label: 'MRP' },
-    { key: 'stock', label: 'Stock now' }, { key: 'soh', label: 'On hand', num: true, f: v => fmt(v, 1) }, { key: 'min', label: 'Min', num: true, f: v => fmt(v, 1) }, { key: 'max', label: 'Max', num: true, f: v => fmt(v, 1) },
+    { key: 'stock', label: 'Stock now' }, { key: 'soh', label: 'On hand', num: true, f: v => fmt(v, 1) }, { key: 'rsv', label: 'Reserved', num: true, f: v => fmt(v, 1) },
+    { key: 'min', label: 'Min', num: true, f: v => fmt(v, 1) }, { key: 'max', label: 'Max', num: true, f: v => fmt(v, 1) }, { key: 'cover', label: 'Cover (mo)', num: true, f: v => v == null ? 'not moving' : fmt(v, 1) },
     { key: 'lines', label: isChain ? 'Lines' : 'Items', num: true },
     ...(isChain ? [{ key: 'inflight', label: 'In flight', num: true }, { key: 'oldest', label: 'Oldest in flight (d)', num: true, f: v => v == null ? '—' : '≥ ' + fmt(v) },
-      { key: 'overdueN', label: 'Overdue lines', num: true }, { key: 'pos', label: 'POs', cls: 'wrap' }] : [])
+      { key: 'pos', label: 'POs', cls: 'wrap' }] : [])
   ];
 
   function renderDrill(){
@@ -885,25 +913,27 @@
     if (R.hasMat) {
       const opts = (vals, cur) => { const s2 = new Map(); vals.forEach(v => { if (v) s2.set(v, (s2.get(v) || 0) + 1); }); if (cur && !s2.has(cur)) s2.set(cur, 0);
         return [...s2.entries()].sort((x, y) => y[1] - x[1] || String(x[0]).localeCompare(String(y[0]))).map(([v, n]) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(v)} (${fmt(n)})</option>`).join(''); };
-      const chip = (k, l, tip) => `<button class="btn-sm chk ${q[k] ? 'on' : ''}" data-dqk="${k}" title="${esc(tip)}">${q[k] ? '☑' : '☐'} ${esc(l)}</button>`;
+      const overM = state.settings.overMonths || 12;
+      const chip = (k, l, tip) => { const m = q[k] || ''; const lab = k === 'over' ? `${l} (> ${fmt(overM)} mo)` : l;
+        return `<button class="btn-sm chk ${m ? 'on' : ''} ${m === 'out' ? 'excl' : ''}" data-dqk="${k}" title="${esc(tip)} — click: only these → exclude these → off">${m === 'in' ? '☑' : m === 'out' ? '☒ not' : '☐'} ${esc(lab)}</button>`; };
+      const not = (k) => `<button class="btn-sm ghost dq-not ${q[k + 'Not'] ? 'on' : ''}" data-dqnot="${k}" title="switch between is and is not">${q[k + 'Not'] ? 'is not' : 'is'}</button>`;
       bar.innerHTML = `<span class="seg-lab">Filter</span>
-        ${R.isChain ? chip('overdue', 'Overdue', 'past the PR\'s need-by date and not received — or received after it') : ''}
-        ${chip('below', 'Below Min / SS now', 'today\'s stock is below Min (V1) or SS (PD), or at zero')}
-        ${chip('out', 'Stocked out now', 'today\'s stock is zero')}
-        ${chip('cont', 'Continuous use', 'issued in at least 6 of the last 12 months')}
-        ${R.isChain ? `<select data-dqs="trig" aria-label="Created by"><option value="">MRP + manual</option>${['MRP', 'Manual', 'Unknown', 'Other'].map(v => `<option value="${v}" ${q.trig === v ? 'selected' : ''}>${v} only</option>`).join('')}</select>` : ''}
-        <select data-dqs="mrp" aria-label="MRP type"><option value="">Any MRP type</option>${opts(R.all.map(r => mInfo(r.material).mrpType), q.mrp)}</select>
-        <select data-dqs="mfr" aria-label="Supplier (manufacturer)"><option value="">Any supplier</option>${opts(R.all.map(r => mInfo(r.material).manufacturer), q.mfr)}</select>
+        ${DQ_CHIPS.map(c => chip(c[0], c[1], c[2])).join('')}
+        ${R.isChain ? `<span class="dq-pick">${not('trig')}<select data-dqs="trig" aria-label="Created by"><option value="">MRP or manual</option>${['MRP', 'Manual', 'Unknown', 'Other'].map(v => `<option value="${v}" ${q.trig === v ? 'selected' : ''}>${v}</option>`).join('')}</select></span>` : ''}
+        <span class="dq-pick">${not('mrp')}<select data-dqs="mrp" aria-label="MRP type"><option value="">Any MRP type</option>${opts(R.all.map(r => mInfo(r.material).mrpType), q.mrp)}</select></span>
+        <span class="dq-pick">${not('mfr')}<select data-dqs="mfr" aria-label="Supplier (manufacturer)"><option value="">Any supplier</option>${opts(R.all.map(r => mInfo(r.material).manufacturer), q.mfr)}</select></span>
         ${R.isChain ? `<label class="dq-num">Days ≥ <input type="number" min="0" step="1" data-dqn="minDays" value="${esc(q.minDays == null ? '' : q.minDays)}" placeholder="any"/></label>` : ''}
+        ${R.isChain ? chip('overdue', 'Past SAP need-by', "past the PR's need-by (Delivery Date) with no site receipt, or received after it — SAP's date, indicative only") : ''}
         <button class="btn-sm ghost" data-dqclear ${dqActive() ? '' : 'disabled'}>Clear</button>
         <span class="dq-count"><b>${fmt(R.rows.length)}</b> of ${fmt(R.all.length)} ${R.isChain ? 'lines' : 'items'} · <b>${fmt(mats)}</b> material${mats === 1 ? '' : 's'}</span>
         <span class="dq-mode"><button class="btn-sm ${mode === 'lines' ? 'on' : ''}" data-dqm="lines">${R.isChain ? 'PR / PO lines' : 'Items'}</button><button class="btn-sm ${mode === 'mats' ? 'on' : ''}" data-dqm="mats">Materials</button></span>
         <button class="btn-sm" data-xlsx>⤓ Excel</button>`;
-      bar.querySelectorAll('[data-dqk]').forEach(b => b.addEventListener('click', () => { state.dq[b.dataset.dqk] = !state.dq[b.dataset.dqk]; saveUi(); renderDrill(); }));
+      bar.querySelectorAll('[data-dqk]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.dqk; state.dq[k] = ({ '': 'in', in: 'out', out: '' })[state.dq[k] || '']; saveUi(); renderDrill(); }));
+      bar.querySelectorAll('[data-dqnot]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.dqnot + 'Not'; state.dq[k] = !state.dq[k]; saveUi(); renderDrill(); }));
       bar.querySelectorAll('[data-dqs]').forEach(sl => sl.addEventListener('change', () => { state.dq[sl.dataset.dqs] = sl.value; saveUi(); renderDrill(); }));
       bar.querySelectorAll('[data-dqn]').forEach(inp => inp.addEventListener('change', () => { state.dq[inp.dataset.dqn] = inp.value === '' ? '' : Math.max(0, +inp.value || 0); saveUi(); renderDrill(); }));
       bar.querySelectorAll('[data-dqm]').forEach(b => b.addEventListener('click', () => { state.dq.mode = b.dataset.dqm; saveUi(); renderDrill(); }));
-      bar.querySelector('[data-dqclear]').addEventListener('click', () => { Object.assign(state.dq, { overdue: false, below: false, out: false, cont: false, trig: '', mrp: '', mfr: '', minDays: '' }); saveUi(); renderDrill(); });
+      bar.querySelector('[data-dqclear]').addEventListener('click', () => { Object.assign(state.dq, { below: '', out: '', over: '', cont: '', overdue: '', trig: '', trigNot: false, mrp: '', mrpNot: false, mfr: '', mfrNot: false, minDays: '' }); saveUi(); renderDrill(); });
     } else {
       bar.innerHTML = `<span class="dq-count"><b>${fmt(R.rows.length)}</b> items</span><button class="btn-sm" data-xlsx>⤓ Excel</button>`;
     }
@@ -933,11 +963,13 @@
   const XL_LINES = [
     ['Material', r => r.material], ['Description', r => r._i.description], ['Manufacturer', r => r._i.manufacturer], ['MRP type', r => r._i.mrpType],
     ['Min', r => r._i.min], ['Max', r => r._i.max], ['Safety stock', r => r._i.ss], ['Stock on hand (as of)', r => r._i.soh], ['Stock status (as of)', r => r._i.stockStatus],
+    ['Reserved (IM, as of)', r => r._i.reservedIm], ['Open PO qty (IM, as of)', r => r._i.openPoIm],
+    ['Months of cover', r => r._i.monthsCover == null ? 'not moving' : Math.round(r._i.monthsCover * 10) / 10],
     ['Months with an issue (last 12)', r => r._i.consMonths12], ['Unit cost', r => r._i.map],
     ['PR', r => r.pr], ['PR item', r => r.prItem], ['Created by', r => r.trig], ['PR date', r => xDate(r.prD)], ['PR qty', r => r.qty], ['Released', r => xDate(r.rel)],
     ['PO', r => r.po], ['PO date', r => xDate(r.poD)], ['At 3PL (107)', r => xDate(r.g107)], ['At site (109)', r => xDate(r.g109)], ['Need-by', r => xDate(r.need)],
     ['Phase', r => r.phase], ['Days in phase', r => r.v], ['Status', r => r.st === 'open' ? 'in flight (days = age so far)' : r.st === 'oos' ? 'out of sequence' : r.st === 'done' ? 'completed' : r.st],
-    ['Days overdue vs need-by', r => r.overdue > 0 ? r.overdue : null], ['Path', r => r.path]
+    ['Path', r => r.path], ['Days past SAP need-by (indicative)', r => r.overdue > 0 ? r.overdue : null]
   ];
   async function exportDrillXlsx(d, R, mode){
     try { await loadXlsx(); } catch (e) { toast(e.message, 'crit'); return; }
@@ -953,13 +985,18 @@
     }
     if (R.hasMat) {
       const mc = [['Material', 'material'], ['Description', 'desc'], ['Manufacturer', 'mfr'], ['MRP type', 'mrp'], ['Stock status (as of)', 'stock'], ['Stock on hand (as of)', 'soh'],
-        ['Min', 'min'], ['Max', 'max'], ['Safety stock', 'ss'], ['Months with an issue (last 12)', 'cons12'], ['Consumed / yr', 'consYr'], ['Unit cost', 'cost'], [R.isChain ? 'Lines in list' : 'Items in list', 'lines']]
-        .concat(R.isChain ? [['In flight', 'inflight'], ['Oldest in flight (days)', 'oldest'], ['Longest completed (days)', 'longest'], ['Overdue lines', 'overdueN'], ['Most days overdue', 'maxOverdue'], ['PRs', 'prs'], ['POs', 'pos']] : []);
+        ['Reserved (IM, as of)', 'rsv'], ['Open PO qty (IM, as of)', 'openPo'], ['Min', 'min'], ['Max', 'max'], ['Safety stock', 'ss'], ['Months of cover', 'cover'],
+        ['Months with an issue (last 12)', 'cons12'], ['Consumed / yr', 'consYr'], ['Unit cost', 'cost'], [R.isChain ? 'Lines in list' : 'Items in list', 'lines']]
+        .concat(R.isChain ? [['In flight', 'inflight'], ['Oldest in flight (days)', 'oldest'], ['Longest completed (days)', 'longest'], ['PRs', 'prs'], ['POs', 'pos'],
+          ['Lines past SAP need-by (indicative)', 'overdueN'], ['Most days past SAP need-by', 'maxOverdue']] : []);
       put('Materials', [mc.map(c => c[0])].concat(materialRows(R.rows, R.isChain).map(e => mc.map(c => e[c[1]] == null ? null : e[c[1]]))));
     }
     const q = state.dq, f = [];
-    if (q.overdue) f.push('overdue vs need-by'); if (q.below) f.push('below Min / SS now'); if (q.out) f.push('stocked out now'); if (q.cont) f.push('continuous use (issued in ≥ 6 of the last 12 months)');
-    if (q.trig) f.push('created by ' + q.trig); if (q.mrp) f.push('MRP type ' + q.mrp); if (q.mfr) f.push('supplier ' + q.mfr); if (q.minDays !== '' && q.minDays != null) f.push('days ≥ ' + q.minDays);
+    const tri = (k, l) => { if (q[k] === 'in') f.push('only ' + l); else if (q[k] === 'out') f.push('excluding ' + l); };
+    tri('below', 'below Min / SS now'); tri('out', 'stocked out now'); tri('over', `over-stocked (> ${state.settings.overMonths || 12} months of cover)`);
+    tri('cont', 'continuous use (issued in ≥ 6 of the last 12 months)'); tri('overdue', 'past SAP need-by');
+    if (q.trig) f.push('created by ' + (q.trigNot ? 'not ' : '') + q.trig); if (q.mrp) f.push('MRP type ' + (q.mrpNot ? 'not ' : '') + q.mrp);
+    if (q.mfr) f.push('supplier ' + (q.mfrNot ? 'not ' : '') + q.mfr); if (q.minDays !== '' && q.minDays != null) f.push('days ≥ ' + q.minDays);
     const m = state.model;
     put('About', [
       ['Calibre Mirror — drill export'], [],
@@ -968,7 +1005,9 @@
       ['Quick filters', f.length ? f.join(' · ') : 'none'], ['Rows', R.rows.length + ' of ' + R.all.length], ['Exported', new Date().toLocaleString()], [],
       ['Definitions'],
       ['In flight', 'Not finished yet — days are its age so far as of the data date (a lower bound).'],
-      ['Overdue', 'Past the PR\'s need-by (Delivery Date) with no site receipt as of the data date — or received after it (days late).'],
+      ['Months of cover', 'Stock on hand ÷ average monthly use over the 12 months to the data date. Not moving = no net use in those 12 months.'],
+      ['Reserved / Open PO (IM)', "The Inventory Master's own totals as of its extract date — shown for reference, not yet used in any calculation."],
+      ['Past SAP need-by', "The PR's Delivery Date from SAP — indicative only; days past it with no site receipt (or received after it)."],
       ['Stock / Min / Max / SS', 'Today\'s Inventory Master values (as of the data date); earlier changes can\'t be seen.'],
       ['Continuous use', 'Issued (261 / 201 / 221 / 291 / 551) in at least 6 of the 12 months to the data date.'],
       ['107 / 109', '107 = arrived at the 3PL (blocked stock); 109 = received at site.']
@@ -987,12 +1026,11 @@
         const M = E.METRICS[d.metric];
         return [
           { key: 'material', label: 'Material' }, { key: 'desc', label: 'Description', cls: 'wrap' }, { key: 'mfr', label: 'Manufacturer' },
-          { key: 'mrp', label: 'MRP' }, { key: 'stock', label: 'Stock now' }, { key: 'trig', label: 'Trigger' }, { key: 'pr', label: 'PR' }, { key: 'prD', label: 'PR date' },
+          { key: 'mrp', label: 'MRP' }, { key: 'stock', label: 'Stock now' }, { key: 'cover', label: 'Cover (mo)', num: true, f: v => v == null ? 'not moving' : fmt(v, 1) }, { key: 'trig', label: 'Trigger' }, { key: 'pr', label: 'PR' }, { key: 'prD', label: 'PR date' },
           { key: 'qty', label: 'PR qty', num: true }, { key: 'rel', label: 'Released' }, { key: 'po', label: 'PO' }, { key: 'poD', label: 'PO date' }, { key: 'g107', label: 'At 3PL' },
           { key: 'g109', label: 'At site' }, { key: 'need', label: 'Need-by' },
           { key: 'v', label: M ? M.label + ' (d)' : 'Days', num: true, f: (v, r) => (r.st === 'open' ? '≥ ' : '') + fmt(v) },
           { key: 'st', label: 'Status', f: (v) => v === 'open' ? '<span class="st-open">in flight</span>' : v === 'oos' ? '<span class="st-oos">! out of sequence</span>' : v === 'done' ? 'completed' : esc(v), html: true },
-          { key: 'overdue', label: 'Overdue (d)', num: true, f: v => v > 0 ? fmt(v) : '' },
           { key: 'path', label: 'Path', cls: 'wrap' }
         ];
       },
@@ -1000,7 +1038,7 @@
         const i = mInfo(c.material); const M = E.METRICS[d.metric]; const x = M ? M.stage(c) : { v: null, s: '' };
         const asOf = state.model.asOf;
         const overdue = c.needD == null ? null : (c.g109 != null ? c.g109 - c.needD : asOf - c.needD);   // days past need-by (received late, or still not received)
-        return { material: c.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, stock: i.stockStatus, trig: c.trig, pr: c.pr, prItem: c.prItem, prD: iso(c.prD), qty: c.qty, rel: iso(c.relD),
+        return { material: c.material, desc: i.description, mfr: i.manufacturer, mrp: i.mrpType, stock: i.stockStatus, cover: i.monthsCover, trig: c.trig, pr: c.pr, prItem: c.prItem, prD: iso(c.prD), qty: c.qty, rel: iso(c.relD),
                  po: c.po, poD: iso(c.poD), g107: iso(c.g107), g109: iso(c.g109), need: iso(c.needD), v: x.v, st: (x.s === 'done' && !M.signed && x.v < 0) ? 'oos' : x.s,
                  overdue: overdue > 0 ? overdue : null, path: c.path };
       },
@@ -1119,7 +1157,7 @@
   function viewOverview(host){
     const m = state.model;
     div(host, 'view-intro', `<h2>Where the process stands</h2><p>Each tile is a distribution summary for the current segment and window — median and P90 counting still-open items as lower bounds (“≥”). Click a tile to open its view.</p>`);
-    const legs = [['AB', 'internal'], ['C', 'supplier'], ['D', 'threepl'], ['E2E', 'e2e'], ['PLAN', 'plan']];
+    const legs = [['AB', 'internal'], ['C', 'supplier'], ['D', 'threepl'], ['E2E', 'e2e']];   // SAP need-by is not a headline (operator 2026-09-26) — it stays under Process paths
     let tiles = '';
     for (const [k, view] of legs) {
       const M = E.METRICS[k], col = E.collect(chainsFor(M), M);
@@ -1813,6 +1851,7 @@
         <label>MRP churn window <span>cancelled MRP PR within N days of creation, no PO</span><input type="number" min="0" max="30" id="sChurn" value="${s.churnDays}"/></label>
         <label>Provisional until % closed <span>a month's distribution is dimmed until this share has closed</span><input type="number" min="50" max="100" id="sProv" value="${Math.round(s.provisionalPct * 100)}"/></label>
         <label>Stale PO after (days) <span>open PO with no receipt stops counting as cover</span><input type="number" min="30" max="3650" id="sStale" value="${s.stalePoDays}"/></label>
+        <label>Over-stocked above (months of cover) <span>moving parts whose stock on hand covers more than this many months of their last-12-month use</span><input type="number" min="1" max="120" id="sOver" value="${s.overMonths || 12}"/></label>
       </div>
       <h4>KPI targets <small>days — leave blank until the baseline is clear</small></h4>
       <div class="set-grid">${TARGET_KEYS.map(([k, l]) => `<label>${esc(l)}<input type="number" data-target="${k}" value="${s.targets[k] != null ? s.targets[k] : ''}" placeholder="not set"/></label>`).join('')}</div>
@@ -1825,6 +1864,7 @@
       churnDays: Math.max(0, +$('#sChurn').value || 0),
       provisionalPct: Math.min(1, Math.max(0.5, (+$('#sProv').value || 90) / 100)),
       stalePoDays: Math.max(30, +$('#sStale').value || 365),
+      overMonths: Math.max(1, +$('#sOver').value || 12),
       targets: {}
     };
     $$('#setBody [data-target]').forEach(i => { if (i.value !== '') s.targets[i.dataset.target] = +i.value; });
