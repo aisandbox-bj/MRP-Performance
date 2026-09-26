@@ -41,6 +41,7 @@
     bandGran: 'month',
     cad: { measure: 'pr', split: 'trigger' },
     heat: { sort: 'exposure', rows: 60 },
+    filtersOpen: false,          // PERF-FILTER-COLLAPSE — the Window + Segment panel starts folded to one line
     matPass: null, matCount: 0,
     quartileCache: new Map()
   };
@@ -217,6 +218,7 @@
       state.view = ws.view || state.view; state.period = ws.period || state.period; state.gran = ws.gran || state.gran;
       state.sub = Object.assign(state.sub, ws.sub || {}); state.breakdownDim = ws.breakdownDim || {};
       state.bandGran = ws.bandGran || state.bandGran; state.cad = Object.assign(state.cad, ws.cad || {}); state.heat = Object.assign(state.heat, ws.heat || {});
+      state.filtersOpen = !!ws.filtersOpen;
       if (Array.isArray(ws.tiles)) { state.tiles = ws.tiles.map(t => Object.assign({}, t, { open: false })); tileSeq = state.tiles.reduce((mx, t) => Math.max(mx, (t.id || 0) + 1), 1); }
     }
     $('#btnLoadJson').addEventListener('click', () => $('#loadJsonInput').click());
@@ -294,7 +296,7 @@
   function saveUi(){
     try { localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, period: state.period, gran: state.gran })); } catch (e) {}
     U.saveWorkbenchState({ view: state.view, period: state.period, gran: state.gran, sub: state.sub, breakdownDim: state.breakdownDim,
-      bandGran: state.bandGran, cad: state.cad, heat: state.heat, tiles: state.tiles.map(t => { const c = Object.assign({}, t); delete c.open; return c; }) });
+      bandGran: state.bandGran, cad: state.cad, heat: state.heat, filtersOpen: state.filtersOpen, tiles: state.tiles.map(t => { const c = Object.assign({}, t); delete c.open; return c; }) });
   }
 
   /* ═════════════════════════════════════════════════════════════════════════
@@ -303,7 +305,18 @@
   function renderSegments(){
     const host = $('#wbFilters');
     const presets = [['all', 'All'], ['24m', '24 m'], ['12m', '12 m'], ['6m', '6 m'], ['3m', '3 m'], ['custom', 'Custom']];
+    /* PERF-FILTER-COLLAPSE (operator 2026-09-25): the panel folds to ONE line —
+       Filters toggle · summary chips (window + each tile, ✕ removes) · count.
+       The full window row, dimension palette and tiles show only when open. */
+    host.classList.toggle('open', state.filtersOpen);
     host.innerHTML = `
+      <div class="seg-bar">
+        <button class="btn-sm seg-toggle ${state.filtersOpen ? 'on' : ''}" id="segToggle" aria-expanded="${state.filtersOpen}" aria-controls="segBody">
+          ${state.filtersOpen ? '▾' : '▸'} Filters <span class="seg-n" id="segN"></span></button>
+        <span class="seg-chips" id="segChips"></span>
+        <span class="seg-count" id="segCount"></span>
+      </div>
+      <div class="seg-body ${state.filtersOpen ? '' : 'hidden'}" id="segBody">
       <div class="seg-top">
         <div class="seg-window">
           <span class="seg-lab">Window</span>
@@ -314,13 +327,14 @@
             <input type="month" id="perTo" value="${esc(state.period.to || '')}" aria-label="To month" />
           </span>
         </div>
-        <div class="seg-count" id="segCount"></div>
       </div>
       <div class="seg-palette" id="segPalette" aria-label="Segment dimensions — drag or click to add">
         <span class="seg-lab">Segment</span>
         ${DIMS.map(d => `<button class="seg-dim" draggable="true" data-dim="${d.key}" title="${esc(d.hint)}">+ ${esc(d.label)}</button>`).join('')}
       </div>
-      <div class="seg-tiles" id="segTiles"></div>`;
+      <div class="seg-tiles" id="segTiles"></div>
+      </div>`;
+    $('#segToggle').addEventListener('click', () => { state.filtersOpen = !state.filtersOpen; saveUi(); renderSegments(); });
     host.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
       state.period.preset = b.dataset.preset;
       if (b.dataset.preset === 'custom' && !state.period.from) {
@@ -356,10 +370,27 @@
   function renderSegCount(){
     const el = $('#segCount'); if (!el) return;
     const total = state.model.mat.size;
-    const chainT = state.tiles.filter(t => DIM[t.dim].type === 'chain');
-    el.innerHTML = `<b>${fmt(state.matCount)}</b> of ${fmt(total)} materials${chainT.length ? ' · PR trigger: ' + esc(chainT.map(tileSummary).join(' / ')) : ''} · window: <b>${esc(periodLabel())}</b>`
+    el.innerHTML = `<b>${fmt(state.matCount)}</b> of ${fmt(total)} materials`
       + (state.tiles.length ? ` <button class="btn-sm ghost" id="segClear">Clear segment</button>` : '');
     const b = $('#segClear'); if (b) b.addEventListener('click', () => { state.tiles = []; segmentChanged(); renderTiles(); });
+    renderSegChips();
+  }
+  /* PERF-FILTER-COLLAPSE — one-line summary: window + one chip per tile */
+  function renderSegChips(){
+    const host = $('#segChips'); if (!host) return;
+    const n = state.tiles.length + (state.period.preset !== 'all' ? 1 : 0);
+    const nEl = $('#segN'); if (nEl) nEl.textContent = n ? `(${n})` : '';
+    const win = `<span class="schip ${state.period.preset !== 'all' ? 'set' : ''}" data-open="1" title="Time window — click to change">Window: <b>${esc(periodLabel())}</b></span>`;
+    const tiles = state.tiles.map(t => `<span class="schip set" data-open="${t.id}" title="Click to edit">${esc(DIM[t.dim].label)}: <b>${esc(tileSummary(t))}</b><button data-rm="${t.id}" aria-label="Remove ${esc(DIM[t.dim].label)} filter">✕</button></span>`).join('');
+    host.innerHTML = win + (tiles || '<span class="schip muted">All materials — no segment</span>');
+    host.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation(); const id = +b.dataset.rm; state.tiles = state.tiles.filter(t => t.id !== id); segmentChanged(); renderTiles();
+    }));
+    host.querySelectorAll('[data-open]').forEach(c => c.addEventListener('click', () => {
+      const id = +c.dataset.open;
+      state.tiles.forEach(t => t.open = t.id === id);
+      state.filtersOpen = true; saveUi(); renderSegments();
+    }));
   }
 
   function renderTiles(){

@@ -381,6 +381,21 @@ git -C peek push --force-with-lease origin main
 
   <div class="roc-list">
 
+    <!-- v0.2.0-dev follow-up - PERF-FILTER-COLLAPSE - 2026-09-25 -->
+    <article class="roc-entry dev">
+      <div class="head">
+        <span class="ver">v0.2.0</span>
+        <span class="date">2026-09-25</span>
+        <span class="tag dev">dev</span>
+      </div>
+      <h4>v0.2.0-dev follow-up — <b>Filters panel folds to one line</b> (PERF-FILTER-COLLAPSE) — <b>browser-verified; pending operator validation</b></h4>
+      <ul>
+        <li><b>Operator ask:</b> the Window + Segment panel shouldn't be open on every view. It now starts folded to a single line: <b>▸ Filters (n)</b> · a chip for the time window and one per segment tile (each with ✕ to remove it) · the material count. Click <b>Filters</b> — or any chip — to open the full window row, dimension palette and tiles; click again to fold. Open / folded is remembered for the tab, including across a trip to a material deep-dive and back.</li>
+        <li>Presentation only — no change to filtering, numbers or saved data.</li>
+      </ul>
+      <div class="commit rollback"><b>Rollback.</b> Remote <code>backup/pre-PERF-FILTER-COLLAPSE</code> + <code>checkpoint/pre-PERF-FILTER-COLLAPSE</code> at the v0.2.0-dev commit; local <code>_rollback/PERF-FILTER-COLLAPSE-pre/</code>.</div>
+    </article>
+
     <!-- v0.2.0-dev - material deep-dive + multi-material views + band charts - 2026-09-25 -->
     <article class="roc-entry dev">
       <div class="head">
